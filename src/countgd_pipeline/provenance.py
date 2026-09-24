@@ -15,10 +15,15 @@ from .config import (
     MODEL_FILENAME,
     MODEL_ID,
     MODEL_LICENSE,
+    MODEL_REPO_TYPE,
     MODEL_REVISION,
     MODEL_SHA256,
     MODEL_SIZE_BYTES,
+    PICKLE_AUDIT_SHA256,
     SHORT_SIDE,
+    SOURCE_CKPT_NAME,
+    SOURCE_CKPT_SHA256,
+    SOURCE_CKPT_SIZE_BYTES,
     TARGET_BOX_PX,
     TOKENIZER_LICENSE,
     TOKENIZER_MODEL_ID,
@@ -74,12 +79,14 @@ def build_provenance(
 
     model_record: dict[str, Any] = {
         "id": MODEL_ID,
+        "repo_type": MODEL_REPO_TYPE,
         "revision": MODEL_REVISION,
         "license": MODEL_LICENSE,
         "weight_file": MODEL_FILENAME,
         "weight_sha256": weight_sha256,
         "weight_size_bytes": weight_size,
-        "weight_format": "safetensors",
+        "weight_format": "safetensors (converted once from the audited pickle below)",
+        "derived_from": {"file": SOURCE_CKPT_NAME, "sha256": SOURCE_CKPT_SHA256, "bytes": SOURCE_CKPT_SIZE_BYTES, "pickle_audit_sha256": PICKLE_AUDIT_SHA256},
     }
     if checkpoint_source is not None:
         model_record["checkpoint_source"] = checkpoint_source
@@ -96,7 +103,7 @@ def build_provenance(
         ),
         "confidence_threshold": CONFIDENCE_THRESHOLD,
         "score_semantics": "sigmoid token similarities, uncalibrated; the count is a threshold decision, not a probability",
-        "training_box": f"{TARGET_BOX_PX:g} x {TARGET_BOX_PX:g} px boxes centred on FSC-147 points (upstream), so predicted boxes are read as points",
+        "training_box": f"upstream trained on FSC-147 with {TARGET_BOX_PX:g} x {TARGET_BOX_PX:g} px boxes centred on the points; the GroundingDINO initialisation still yields object-sized boxes, which are scored by IoU where gold object boxes exist and read as points otherwise",
         "max_exemplars": MAX_EXEMPLARS,
         "deformable_attention": "pure-PyTorch grid_sample path (no compiled op) on CPU and CUDA alike",
     }

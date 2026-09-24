@@ -42,5 +42,5 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "integration: downloads and runs the real pinned SigLIP checkpoint",
+    "integration: downloads, converts and runs the real pinned CountGD checkpoint",
 ]

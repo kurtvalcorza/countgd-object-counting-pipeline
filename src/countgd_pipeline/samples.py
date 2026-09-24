@@ -297,6 +297,26 @@ def _check_points(value: Any, width: int, height: int, what: str) -> list[list[f
     return out
 
 
+def _check_object_boxes(value: Any, width: int, height: int, what: str) -> list[list[float]]:
+    """Gold object boxes `[x0, y0, x1, y1]` (one per counted object, full extents), in image pixels."""
+    if isinstance(value, Mapping) or not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise ValueError(f"{what}: boxes must be a list of [x0, y0, x1, y1] boxes")
+    if len(value) > MAX_COUNT:
+        raise ValueError(f"{what}: at most {MAX_COUNT} boxes")
+    out = []
+    for i, box in enumerate(value):
+        if isinstance(box, Mapping) or not isinstance(box, Sequence) or len(box) != 4:
+            raise ValueError(f"{what}: box {i} must be [x0, y0, x1, y1]")
+        try:
+            x0, y0, x1, y1 = (float(v) for v in box)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{what}: box {i} must hold numbers") from exc
+        if not (0.0 <= x0 < x1 <= width and 0.0 <= y0 < y1 <= height):
+            raise ValueError(f"{what}: box {i} {box} is outside the image or empty ({width} x {height})")
+        out.append([x0, y0, x1, y1])
+    return out
+
+
 def _check_record(record: Any, index: int, *, require_annotations: bool = True) -> dict[str, Any]:
     what = f"records[{index}]"
     if not isinstance(record, Mapping):
@@ -327,6 +347,13 @@ def _check_record(record: Any, index: int, *, require_annotations: bool = True) 
         item["exemplars"] = []
     if "points" in record and record["points"] is not None:
         item["points"] = _check_points(record["points"], width, height, what)
+    if "boxes" in record and record["boxes"] is not None:
+        item["boxes"] = _check_object_boxes(record["boxes"], width, height, what)
+        centres = [[(b[0] + b[2]) / 2, (b[1] + b[3]) / 2] for b in item["boxes"]]
+        if "points" not in item:
+            item["points"] = centres
+        elif len(item["points"]) != len(centres):
+            raise ValueError(f"{what}: {len(item['points'])} points but {len(centres)} boxes")
     if "count" in record:
         count = record["count"]
         if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= MAX_COUNT:
@@ -336,7 +363,7 @@ def _check_record(record: Any, index: int, *, require_annotations: bool = True) 
         item["count"] = count
     elif "points" in item:
         item["count"] = len(item["points"])
-    for key in ("source_file", "source_url", "original_size", "resize_ratio"):
+    for key in ("source_file", "source_url", "original_size", "resize_ratio", "distractors"):
         if key in record:
             item[key] = record[key]
     return item
@@ -378,6 +405,7 @@ def validate_dataset(
         "image_side": {"min": min(sides), "max": max(sides)},
         "gold_count": {"min": min(gold), "max": max(gold), "total": sum(gold)} if gold else None,
         "with_points": sum(1 for r in checked if "points" in r),
+        "with_boxes": sum(1 for r in checked if "boxes" in r),
         "with_exemplars": sum(1 for r in checked if r["exemplars"]),
         "digest": dataset_digest(checked),
         "model_id": MODEL_ID,
@@ -504,10 +532,13 @@ def load_byod_dataset(path: str | Path) -> list[dict[str, Any]]:
         record: dict[str, Any] = {"id": row["id"], "image": image.convert("RGB"), "label": row["label"], "count": count}
         points = _parse_json_cell(row.get("points"), f"{row['id']}: points")
         exemplars = _parse_json_cell(row.get("exemplars"), f"{row['id']}: exemplars")
+        boxes = _parse_json_cell(row.get("boxes"), f"{row['id']}: boxes")
         if points is not None:
             record["points"] = points
         if exemplars is not None:
             record["exemplars"] = exemplars
+        if boxes is not None:
+            record["boxes"] = boxes
         out.append(record)
     return out
 
@@ -517,7 +548,7 @@ def write_dataset_csv(records: Sequence[Mapping[str, Any]], path: str | Path) ->
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["id", "file", "label", "count", "exemplars", "points", "source_url"])
+        writer = csv.DictWriter(handle, fieldnames=["id", "file", "label", "count", "exemplars", "points", "boxes", "source_url"])
         writer.writeheader()
         for record in records:
             writer.writerow(
@@ -528,6 +559,7 @@ def write_dataset_csv(records: Sequence[Mapping[str, Any]], path: str | Path) ->
                     "count": record.get("count", ""),
                     "exemplars": json.dumps(record.get("exemplars", [])),
                     "points": json.dumps(record["points"]) if "points" in record else "",
+                    "boxes": json.dumps(record["boxes"]) if "boxes" in record else "",
                     "source_url": record.get("source_url", ""),
                 }
             )

@@ -1,26 +1,26 @@
 ---
-license: Apache-2.0
-model_card_spec: "1.1"
-pipeline_tag: image-feature-extraction
-task: "Others - Self-Supervised Reconstruction"
+license: mit
+model_card_spec: "1.2"
+pipeline_tag: zero-shot-object-detection
+task: "Others - Open-World Object Counting"
 tags:
-  - masked-autoencoder
-  - self-supervised
-  - masked-image-modelling
-  - reconstruction
-  - linear-probe
-  - backbone
-base_model: facebook/vit-mae-base
-date_published: "2022-03-02"
-date_published_source: "Hugging Face Hub repository creation date of the exact hosted checkpoint (`createdAt`, https://huggingface.co/api/models/facebook/vit-mae-base)"
+  - counting
+  - open-world
+  - grounding-dino
+  - exemplars
+  - text-prompted
+  - object-counting
+base_model: nikigoli/countgd
+date_published: "2024-07-05"
+date_published_source: "first commit of the authors' Hugging Face Space nikigoli/countgd holding checkpoint_best_regular.pth with the pinned LFS object id (commit a277bb81, 2024-07-05T19:39:02Z, https://huggingface.co/spaces/nikigoli/countgd/commits/main)"
 ---
 
-# ViT-MAE Base — Masked Autoencoder (Masked-Patch Reconstruction, Linear Probe & Bounded Continuation of Pre-training)
+# CountGD — Multi-Modal Open-World Counting (Text & Exemplar Prompts, Box-Scored Evaluation & Bounded Counting Fine-Tune)
 
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-facebook%2Fvit--mae--base-ffcc4d?style=flat)](https://huggingface.co/facebook/vit-mae-base)
-[![Upstream GitHub](https://img.shields.io/badge/Upstream%20GitHub-facebookresearch%2Fmae-181717?style=flat&logo=github&logoColor=white)](https://github.com/facebookresearch/mae)
-[![arXiv Paper](https://img.shields.io/badge/arXiv-2111.06377-b31b1b.svg)](https://arxiv.org/abs/2111.06377)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Space-nikigoli%2Fcountgd-ffcc4d?style=flat)](https://huggingface.co/spaces/nikigoli/countgd)
+[![Upstream GitHub](https://img.shields.io/badge/Upstream%20GitHub-niki--amini--naieni%2FCountGD-181717?style=flat&logo=github&logoColor=white)](https://github.com/niki-amini-naieni/CountGD)
+[![arXiv Paper](https://img.shields.io/badge/arXiv-2407.04619-b31b1b.svg)](https://arxiv.org/abs/2407.04619)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/niki-amini-naieni/CountGD/blob/main/LICENSE)
 
 > [!WARNING]
 > ⚠️ **Provided for research, training, and evaluation purposes only.** Model weights are redistributed unmodified under their upstream license, which controls your use, including any commercial use or redistribution; the accompanying code and notebooks are released under this repository's license. All of it is supplied **"as is"**, without warranty of any kind, and has not been validated for production, clinical, or safety-critical use. Running the notebooks downloads third-party weights and datasets governed by their own licenses and consumes compute on your own Colab/Kaggle account. To the maximum extent permitted by law, the maintainers of this repository and the DIMER platform accept no liability for any damages arising from their use. Hosting implies no affiliation with or endorsement by the original authors.
@@ -29,125 +29,195 @@ date_published_source: "Hugging Face Hub repository creation date of the exact h
 
 ## Interactive Colab Tutorials
 
-This repository ships one standalone Google Colab tutorial that exercises its public pipeline API end to end — bootstrap a fresh runtime, stage and verify the pinned upstream revision, fetch and validate a digest-pinned photograph set, measure the frozen model's reconstructions against two non-neural fills and its features through a linear probe against three non-neural classifiers, run a bounded continuation of the pre-training objective, evaluate on an image-disjoint split both ways, and export and reload the adapter:
+This repository ships one standalone Google Colab tutorial that exercises its public pipeline API end to end — bootstrap a fresh runtime, stage and verify the pinned upstream checkpoint, audit and convert it, count one scene three ways, score the frozen model against two non-neural baselines on held-out scenes and photographs, run a bounded counting fine-tune, evaluate again, and export and reload the adapter:
 
-- **E2E Masked-Image-Modelling Tutorial**: \
-  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/vit-mae-pretraining-pipeline/blob/main/tutorials/vit_mae_pretraining_colab.ipynb) [`vit_mae_pretraining_colab.ipynb`](https://github.com/kurtvalcorza/vit-mae-pretraining-pipeline/blob/main/tutorials/vit_mae_pretraining_colab.ipynb) \
-  *Masked-patch reconstruction and mean-pooled embeddings with the pinned `facebook/vit-mae-base` weights, then a bounded continuation of masked autoencoding on the decoder and the last two encoder blocks over 360 CC0 iNaturalist photographs of six bird species: the frozen model's masked-patch MSE beside the mean-patch and blur fills, a linear probe beside the majority floor, a colour nearest neighbour and a k-NN, validation-MSE epoch selection that never returns a worse epoch than the frozen model, held-out evaluation both ways, the drawn shapes re-reconstructed, and a safetensors adapter with its probe head that reloads with verified parity.*
+- **E2E Open-World Counting Tutorial**: \
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/countgd-object-counting-pipeline/blob/main/tutorials/countgd_object_counting_colab.ipynb) [`countgd_object_counting_colab.ipynb`](https://github.com/kurtvalcorza/countgd-object-counting-pipeline/blob/main/tutorials/countgd_object_counting_colab.ipynb) \
+  *Counting with the pinned CountGD checkpoint from a text prompt, three exemplar boxes, or both; count error, point localisation and box IoU on synthetic scenes with known boxes and on 24 FSC-147 test photographs, beside a mean-count baseline and a template matcher; a fine-tune of the last two decoder layers and the shared box head with validation-MAE epoch selection; and a safetensors adapter that reloads with verified parity.*
 
 > [!NOTE]
-> The notebook runs on CPU and uses CUDA automatically when present. Its clean-runtime execution record and the promotion requirements are in [release verification](docs/release-verification.md).
+> The notebook runs on CPU and uses CUDA automatically when present. Its execution records and the promotion requirements are in [release verification](docs/release-verification.md).
 
 ---
 
 #### Description
 
-ViT-MAE Base is the open-weight ViT-B/16 masked autoencoder of He, Chen, Xie, Li, Dollár and Girshick's *Masked Autoencoders Are Scalable Vision Learners* (CVPR 2022), released by Meta AI (`facebook/vit-mae-base`, pinned revision `25b184bea5538bf5c4c852c79d221195fdd2778d`) and packaged by this repository as a verified DIMER pipeline — the fleet's first self-supervised, task-free row. The checkpoint is the **pre-training** model, `ViTMAEForPreTraining`: a 12-layer, 768-wide encoder (85,798,656 parameters) that sees only the visible 25 % of an image's 196 16×16 patches, and an 8-layer, 512-wide decoder (26,109,184 parameters) that predicts the pixels of the hidden 75 % from the encoder's tokens plus a shared mask token; 111,907,840 parameters in `model.safetensors`, pre-trained on ImageNet-1K for 1,600 epochs with per-patch pixel MSE on the hidden patches only (`norm_pix_loss` off in this checkpoint). It has **no user-facing task output**: the model returns a reconstruction and its own loss, and its encoder is what downstream fine-tuning consumes. This repository reads the checkpoint two ways — `reconstruct` (a seeded random mask, the masked-patch and visible-patch MSE per image, the model's own loss, the composited reconstruction) and `embed` (the mean of the patch tokens with nothing hidden, L2-normalised) with a linear probe on those features — and contributes a hardened supply-chain wrapper (SHA-256 and byte-size verification before loading, exclusion of pickle checkpoints, local-only snapshot execution with `trust_remote_code=False`, rejection of remote HTTP(S) image fetches, full provenance tracking) and a bounded adaptation contract: `evaluate_reconstruction` scores a photograph set with one seeded mask per record beside two non-neural fills, `fit_probe` / `evaluate` read the features through a standardised linear head beside a k-NN, `adapt` continues masked autoencoding on the decoder and the last encoder blocks (40,286,464 of 111,907,840 parameters by default) with validation-MSE epoch selection, and `save_artifact` / `from_artifact` export the trained tensors and the probe head as a digest-manifested safetensors adapter that reloads onto a freshly verified base. The tutorial demonstrates the contract on 360 CC0 iNaturalist photographs of six North American bird species — an in-domain set on which the build record found continued pre-training barely moves a converged checkpoint, which the documentation states rather than hides.
+This repository packages **CountGD** (Amini-Naieni, Han and Zisserman, *CountGD: Multi-Modal Open-World Counting*, NeurIPS 2024), the paper checkpoint the authors distribute as `checkpoint_best_regular.pth` in their Hugging Face Space `nikigoli/countgd`, pinned at revision `6e82e59569a84ee5c6aafa35d396f2d2bee57be2`.
+
+CountGD is an open-set object detector used as a counter. It is GroundingDINO: a Swin-B image backbone, a BERT text encoder, a feature enhancer that fuses image and text features, and a six-layer transformer decoder with 900 object queries. CountGD extends it so that each exemplar box the user draws is pooled from the image features and entered as an extra prompt token beside the words of the text. The network has 233,362,816 parameters.
+
+At inference time every query predicts one box and a similarity score to each prompt token. The queries whose best score exceeds a threshold — 0.23, the authors' value — are the counted objects. The output is a count, one box and one point (the box centre) per counted object, and the scores. The prompt is a text naming the category, up to three exemplar boxes, or both. No training happens at inference; adaptation happens only through the bounded fine-tune this repository ships.
+
+This repository adds the following to the upstream weights:
+
+- **pinned and verified weights:** the source checkpoint is pinned by revision, byte size and SHA-256; its pickle is audited statically, opened once with torch's restricted unpickler, and converted into `countgd.safetensors`, whose digest is pinned and is the only file the loader reads;
+- **vendored model code:** the upstream network carried as PyTorch source with the multi-scale deformable attention in pure PyTorch, so no compiled CUDA extension is needed;
+- **an inference contract:** `CountGDPipeline.count` and `validate_inputs`, which validate the image, the prompt and the exemplar boxes before any tensor work;
+- **an evaluation path:** `CountGDPipeline.evaluate`, reporting count error, point localisation and box IoU, and two non-neural baselines scored by the same code;
+- **a fine-tuning entry point:** `CountGDPipeline.adapt`, a bounded fine-tune on upstream's objective with validation-based epoch selection, and a safetensors adapter format that `from_artifact` verifies before loading;
+- **sample data code:** seeded synthetic counting scenes with known object boxes, and a digest-pinned set of 80 FSC-147 test photographs fetched at run time.
 
 #### Intended Use and Limitations
 
-The sections below outline the primary machine learning tasks, targeted user cohorts, and explicit capability boundaries established for this pipeline.
+The pipeline is meant for counting instances of a category a user can name or point at in still images, and for studying how a small fine-tune changes that count.
 
 ###### Primary Intended Uses
 
-The primary intended uses of this pipeline comprise six technical capabilities:
-1. Masked-patch reconstruction (`ViTMAEPipeline.reconstruct`): hiding a seeded random fraction of an image's patches (75 % by default, 147 of 196) and returning the decoder's reconstruction with the masked-patch MSE, the visible-patch MSE, the mask and the model's own loss.
-2. Image feature extraction (`ViTMAEPipeline.embed`): dense, unit-norm 768-dimensional vectors — the mean of the encoder's patch tokens with nothing hidden — for indexing, clustering, probing or as the input of a downstream head.
-3. Reconstruction evaluation (`ViTMAEPipeline.evaluate_reconstruction`): scoring a validated image set with one seeded mask per record and reporting mean and median masked MSE, visible MSE and hidden-patch PSNR beside the mean-patch and blur fills on the same masks.
-4. Linear-probe evaluation (`ViTMAEPipeline.fit_probe`, `evaluate`, `classify`): a standardised multinomial logistic-regression head on the frozen features of a labelled set, reporting accuracy, macro F1 and a per-class breakdown beside a k-NN vote on the same features.
-5. Bounded continuation of pre-training (`ViTMAEPipeline.adapt`): continuing the masked-autoencoding objective on the decoder, the last encoder blocks and the encoder LayerNorm over a photograph set, labels unused, with validation-MSE epoch selection.
-6. Adapter export and reload (`save_artifact`, `from_artifact`): exporting the trained tensors and the probe head as safetensors with a manifest and reloading them onto a freshly verified base with verified parity.
-Target application domains include representation learning for downstream vision heads, domain-adaptive pre-training on unlabelled imagery from an unfamiliar domain, and feature indexing within the DIMER platform.
+The task is prompt-conditioned object counting. The input is one RGB image and a prompt: a category name of at most 64 plain characters, up to three boxes around single instances, or both. The output is an integer count, one box `[x0, y0, x1, y1]` and one point per counted object in the input image's pixels, and one uncalibrated score per counted object.
+
+Envisioned application domains are counting tasks where the objects are separable instances at moderate density: inventory and shelf items, produce and seeds on a tray, vehicles or animals in a still frame, colonies or cells in a microscopy field, and teaching and research on open-world counting. The authors trained and evaluated the checkpoint on FSC-147, a benchmark of 147 everyday object categories with 7 to 3,701 objects per image.
+
+The pipeline is designed as a component that a reader's own application embeds: a zero-shot counter for categories it was not trained on, a baseline to beat before training a category-specific counter, and a starting point for a bounded fine-tune on a reader's own annotated images.
 
 ###### Primary Intended Users
 
-Primary intended users are computer vision engineers, machine learning researchers and data scientists who understand what a masked autoencoder hides and predicts, that a reconstruction loss is the model's own objective and not a perceptual or quality judgement, that a linear probe is a readout of representation quality rather than a classifier to ship (the paper reports 67.8 % linear-probe top-1 on ImageNet against 83.6 % after full fine-tuning), why a gain — or the absence of one — on one seeded split of one sample is evidence that the contract works rather than a benchmark, why a split must be image-disjoint (and source-disjoint when photographs come from few photographers or sessions), and why the non-neural fills and classifiers are read before any adapted number.
+The intended users are machine learning engineers, computer-vision researchers, data scientists and application developers who need counts of named objects in images.
+
+The envisioned deployment settings are research, teaching, and a self-hosted application or batch job that runs this repository's code on the reader's own hardware or a hosted notebook runtime.
+
+The pipeline assumes that its users understand:
+
+- that the count is the number of scores above a threshold, the scores are not calibrated, and the threshold may need to change for their images;
+- how to read MAE, RMSE, point matching and box IoU, and why a count can be right while the boxes are wrong, or the reverse;
+- that exemplar boxes describe what an object looks like, so exemplars alone can count look-alike objects of another category;
+- that a fine-tune can improve one image distribution and degrade another, and that a held-out set from the original distribution is needed to see it.
 
 ###### Out-of-scope use cases
 
-1. **Capability boundaries:** This model is a pre-training autoencoder. It classifies nothing, detects nothing, segments nothing and generates no new images; its reconstructions are blurry pixel predictions under a random mask, not inpainting of a user-chosen region. It must not be marketed or deployed as a classifier (the probe is a readout), an object detector (use dedicated detection pipelines such as `swin-detection-pipeline`), a semantic segmenter (`swin-segmentation-pipeline`) or an image generator.
-2. **Input boundaries:** Accepts local image paths, raw image bytes and PIL Image instances with sides in 16..4096 px, at most 64 per call. Resolution is fixed to 224×224 pixels through the upstream processor; images with drastic aspect ratios or fine details lose them in the resize. Remote URLs (`http://`, `https://`) are strictly rejected at the API boundary.
-3. **Adaptation boundaries:** `adapt` trains the decoder, the last `trainable_blocks` encoder blocks and the encoder's final LayerNorm only; the patch embedding, the position embeddings and the earlier blocks stay frozen. It continues the pre-training objective and does not fine-tune for a task; full supervised fine-tuning of the encoder, pre-training from scratch and normalised-pixel targets are not provided. The build record's learning-rate sweep found that on a set the checkpoint already covers (natural photographs) a learning rate of `1e-4` makes the validation masked MSE worse from the first epoch and `1e-5` moves it in the fourth decimal; the selector keeps the frozen model when nothing beats it. Datasets are validated structurally, never semantically.
-4. **Decision boundaries:** Autonomous, unreviewed deployment in safety-critical, legal or punitive workflows — automated identification, forensic analysis, medical diagnosis, automated content blocking without human review — is strictly prohibited.
+- **Capability boundaries:**
+  - not an object detector or segmenter to ship: the boxes are a reading of what was counted and are not evaluated as detections;
+  - no density-map counting, video counting or tracking;
+  - no segmentation masks; the upstream SAM-based test-time normalisation is not carried;
+  - no calibrated confidence for a count.
+- **Input boundaries:**
+  - not for images with more objects than one pass of 900 queries at a shortest side of 800 px can separate: the upstream test-time cropping for dense images is not carried, and counts saturate near the query budget;
+  - images must have sides between 32 and 4096 px; smaller or larger images are rejected;
+  - prompts longer than 64 characters, more than three exemplar boxes, exemplar boxes outside the image or under 2 px on a side, and remote URLs as image inputs are rejected;
+  - at most 16 images per call and 2,000 gold objects per training or evaluation record;
+  - behaviour on categories that look alike in shape and texture (for example exemplars alone among similar distractors) degrades; the tutorial demonstrates it.
+- **Decision boundaries:**
+  - not for autonomous decisions with safety, medical, legal or financial consequences, such as dosing from cell counts, crowd-safety limits or billing, without human review of the counts and boxes;
+  - not for counting people to identify, track or profile them (see Use cases).
 
 ---
 
 #### Factors
 
-This section describes factors influencing model representation and behavior, including demographic categories, capturing instruments, and operational runtime environments.
+The model's behaviour varies with the category, the object density and size, the prompt mode, and the image conditions.
 
 ###### Groups
 
-ViT-MAE was pre-trained on ImageNet-1K (Russakovsky et al., 2015) without labels. ImageNet-1K contains people incidentally and in person-related categories, was collected from web image search, and was not demographically balanced or audited for demographic parity; the model's reconstructions and features therefore reflect ImageNet's distribution of subjects, scenes, regions and cultural artefacts. The pipeline itself does not introduce demographic filters; operators using the features on human imagery bear the direct responsibility of conducting independent fairness audits and bias evaluations on their target-domain datasets before any downstream head is trained on them.
+The pipeline is not human-centric: it counts objects of a category the user names or draws, and nothing in the repository's code, sample data or evaluation measures behaviour for groups of people.
+
+The upstream training data, FSC-147, is web images of 147 everyday object categories collected by its authors (6,146 annotated images in the pinned mirror's annotation file, 3,659 of them in the training split). It was not audited by them or by this repository for the demographic or geographic composition of the scenes. The BERT text encoder was pre-trained on English text, and the image backbone on ImageNet-22k; neither was group-audited here.
+
+If a deployment counts people, or objects whose appearance correlates with a group of people, the operator must audit counting error and box quality per group on their own data before relying on the counts. The groups the evaluation in this repository does distinguish are object categories: the eight FSC-147 test categories of the sample, and the target and distractor classes of the synthetic scenes, reported per class by `evaluate`.
 
 ###### Instrumentation
 
-ImageNet-1K photographs originate from diverse consumer and professional cameras, web uploads and scans. Key instrumentation factors that affect data representation include optical resolution, lens distortion, sensor noise, compression artefacts (heavy JPEG quantisation), illumination and dynamic range. Because the processor resizes inputs to 224×224 pixels and the model reasons in 16×16 patches, fine detail below the patch scale is not represented, and a reconstruction loss on an image family the checkpoint has not seen (medical, satellite, microscopy, line art) says only how far that family is from ImageNet's pixel statistics. The pipeline validates image decoding integrity and enforces RGB colour space, but cannot detect underlying camera miscalibration or sensor degradation.
+The FSC-147 images were collected from the web by the benchmark's authors and resized to a height of 384 px; the cameras, lenses and processing behind them are not recorded. The 80 photographs this repository fetches are that 384-px version, from the Hub mirror `isentropic/FSC147` at revision `3e420cb6537e803dd6d4516623ce82a79c0317b8`. The synthetic scenes are drawn in code: flat-colour shapes on a flat background with clutter specks, 512 × 384 px, lossless.
+
+Every image is resized by the pipeline to a shortest side of 800 px (longest at most 1333 px) and normalised with ImageNet statistics, as the authors' test transform does. Instrument characteristics that change apparent object size, sharpness or colour — resolution, lens blur, compression, white balance — change what the model counts, and the pipeline has no check that detects them. JPEG artefacts and motion blur can merge or split small objects; a change in camera or magnification between exemplars and the rest of the image weakens the exemplar prompt.
 
 ###### Environment
 
-1. **Operating environment:** Designed to run on Python 3.12 with PyTorch 2.14 and `transformers` 4.57.6. Supported hardware includes x86_64 CPUs and NVIDIA GPUs supporting CUDA 12.x. A single inference instance requires approximately 0.45 GB of memory for model weights and minimal RAM for batch activations; continuation with the default two blocks needs the activations and optimiser state of 40 M parameters. Float32 precision is default and fully qualified on CPU; half-precision formats require compatible GPU accelerators.
-2. **Data environment:** Assumes photographic or photographic-like RGB images. The masked MSE is low on natural photographs (the domain of pre-training) and rises on images whose pixel statistics diverge from it; that rise is the signal domain-adaptive continuation is for, and also the case in which the reconstructions are least trustworthy as pictures.
+**Operating environment.** The pipeline runs in float32 on CPU or on a CUDA GPU and picks CUDA when it is visible. The deformable attention runs in pure PyTorch on both, so no compiled extension is needed and no feature is unavailable on CPU. On the build workstation's CPU, counting took about 4.6 s per image and a fine-tuning step about 4.7 s (measured in the notebook run recorded in `docs/release-verification.md`). The converted weights are 938 MB; GPU memory use was not measured.
+
+**Data environment.** The model counts categories it has not seen in training, provided the objects are distinct instances and the prompt identifies them. Its behaviour holds best for photographs like FSC-147's: everyday objects, moderate density, objects a few pixels to a few tens of pixels across after resizing. It degrades when objects are very small or overlap heavily, when the scene holds more instances than the query budget separates, when a distractor category shares the target's shape and texture, and when the image distribution is far from web photographs (for example microscopy or aerial imagery) without a fine-tune.
 
 ---
 
 #### Metrics
 
-This section details performance metrics, decision thresholds, and uncertainty management applied across pipeline operations.
+The measures are chosen for a counter whose output is a number and a set of boxes: one measure for the number, one for which objects were counted, and one for the boxes.
 
 ###### Performance Measures
 
-The pipeline reports **masked-patch MSE** — the mean squared error between the decoder's prediction and the true pixels over the patches hidden from the encoder, in the processor's normalised pixel space (ImageNet mean / std), the checkpoint's own training objective and the value `ViTMAEForPreTraining` returns as `loss` — beside the **visible-patch MSE** (the decoder predicts those too, but was never trained on them) and the **PSNR of the hidden patches** in 0..1 pixel space. `evaluate_reconstruction` (`metrics.reconstruction_metrics`) reports the mean and median over a set with one seeded mask per record, and scores two non-neural fills on the same masks: the **mean-patch fill** (every hidden patch is the mean colour of the visible patches) and the **blur fill** (every hidden patch is the mean colour of its visible neighbours). The features are read through a **linear probe** (`fit_probe`: training-set standardisation, the paper's affine-free BatchNorm, then a multinomial logistic-regression head by full-batch Adam) reporting `accuracy`, `macro_f1` and per-class `precision` / `recall` / `f1` (`metrics.classification_metrics`), beside a **k-NN** vote on the same features (`knn_scores`, k = 5), the **majority floor** and the **colour nearest neighbour** (3×3 mean-colour grid). In the literature ViT-MAE Base is quantified by ImageNet-1K top-1 after fine-tuning (83.6 %) and by linear probing (67.8 %); nothing here reproduces those. On the tutorial's 96-photograph test split (CPU build record, seed 42): masked MSE — mean-patch fill 0.7652, blur fill 0.5452, frozen 0.2281 (PSNR 19.3 dB), adapted 0.2280; probe accuracy — majority 0.167, colour neighbour 0.260, k-NN 0.219, frozen probe 0.365 (macro F1 @P:FROZEN_PROBE_F1@), adapted probe 0.365 (macro F1 @P:ADAPTED_PROBE_F1@). These are observations on one seeded split with no dispersion estimate, not a benchmark, and the adapted numbers are the honest reading of continued pre-training on a converged model.
+`CountGDPipeline.evaluate` reports, named as the code names them:
+
+- `mae`, `rmse`, `nae`, `under_count_fraction`, `exact_fraction` — the count error. `mae` and `rmse` are FSC-147's own metrics: `mae` is the mean absolute count error; `rmse` weights the largest errors, which a few dense images dominate; `nae` divides each error by the gold count so that images of different density compare.
+- `localisation.precision`, `localisation.recall`, `localisation.f1` — point localisation: predicted points (box centres) matched one-to-one to gold points by Hungarian matching within half the mean exemplar side (at least 4 px). This is what separates a correct count of the wrong objects from a correct count of the right ones.
+- `boxes.precision`, `boxes.recall`, `boxes.f1`, `boxes.mean_matched_iou`, `boxes.mean_best_iou` — box extent, where gold object boxes exist: predicted boxes matched one-to-one to gold boxes by Hungarian matching on IoU, a true positive at IoU ≥ 0.5.
+
+A count alone hides compensating errors: a model that misses five objects and counts five distractors scores MAE 0. Points alone do not say whether the boxes enclose the objects. Reading all three is why the tutorial uses synthetic scenes with gold boxes beside FSC-147, which has points only.
+
+Recorded values, observed in the notebook run on the build workstation's CPU (one seeded draw; see Approaches to uncertainty):
+
+| Set | System | `mae` | `rmse` | `localisation.f1` | `boxes.f1` |
+|---|---|---|---|---|---|
+| 12 synthetic test scenes | mean-count baseline | 10.00 | 11.11 | — | — |
+| 12 synthetic test scenes | template matcher | 14.50 | 17.84 | 0.704 | — |
+| 12 synthetic test scenes | frozen CountGD | 7.42 | 9.97 | 0.862 | 0.453 |
+| 12 synthetic test scenes | fine-tuned CountGD | 0.92 | 3.18 | 0.981 | 0.550 |
+| 24 FSC-147 test photographs | mean-count baseline | 16.21 | 21.47 | — | — |
+| 24 FSC-147 test photographs | template matcher | 34.00 | 41.59 | 0.353 | — |
+| 24 FSC-147 test photographs | frozen CountGD | 4.54 | 8.69 | 0.922 | — |
+| 24 FSC-147 test photographs | fine-tuned CountGD | 3.50 | 8.34 | 0.925 | — |
+
+The table is the CPU run. In the clean Kaggle T4 run of the same notebook the frozen and baseline values were the same except the FSC-147 frozen RMSE (8.72); the fine-tune kept epoch 2 instead of 3 and reached synthetic MAE 1.58, box F1 0.546 and FSC-147 MAE 3.54 (see Verification records). The authors report FSC-147 test MAE and RMSE for the full test split in their paper; this repository does not reproduce that evaluation and makes no claim about it.
 
 ###### Decision thresholds
 
-The pipeline applies **no threshold** to any number it reports. A masked MSE has no natural cut-off — it is compared with the fills and the frozen model, never read alone — and the probe's softmax scores are ranking scores for a readout, not calibrated class probabilities; the API emits raw values. The only decision the pipeline makes is epoch selection inside `adapt`: the epoch with the lowest validation masked MSE, epoch 0 (the frozen model) included, so the selector can and does return the frozen model when nothing beats it. Downstream operators own every other decision.
+The default decision rule is a threshold: a query counts when its best token score exceeds `CONFIDENCE_THRESHOLD = 0.23`, the authors' value (`--confidence_thresh` in their inference scripts). It is not tuned by this repository and not calibrated for any image distribution. `count` and `evaluate` take a `threshold` argument in (0, 1).
+
+Two further thresholds are fixed in the evaluation and not in the output: a predicted box matches a gold box at IoU ≥ 0.5, and a predicted point matches a gold point within half the mean exemplar side (at least 4 px). No acceptance threshold on any metric was set during development; the tutorial asserts only that the fine-tune's kept epoch is not worse on the validation MAE than the frozen model.
+
+A deployment owns its threshold. Raising it trades missed objects (under-counting) for fewer false counts; lowering it does the reverse. Where an over-count is costly — for example counting defects that trigger rejection — raise it and measure the recall lost; where a missed object is costly, lower it and measure the precision lost, on labelled images from the deployment.
 
 ###### Approaches to uncertainty and variability
 
-Inference is deterministic given a seed: the mask is drawn from a seeded generator (`reconstruct(seed=)`; `evaluate_reconstruction` derives one seed per record id so the same photograph gets the same mask on every evaluation), no dropout is active (`model.eval()`), and the same seed hides the same patches on every run; the masked MSE of one image varies with the mask, which is why the set-level measures are read and the same masks are used before and after adaptation. Variations across runs arise from floating-point kernel differences across hardware or non-deterministic GPU routines. Adaptation is seeded (`seed=0`: shuffling order and training masks) but not bit-reproducible across devices; every corpus metric the tutorial reports is one value on one seeded split (`build_sample_dataset(seed=42)`) of one 360-photograph sample, with a 48-photograph validation split that selects the epoch and a probe whose accuracy moves in steps of one photograph — the build record's learning-rate sweep (four arms at `1e-5`, `3e-5` and `1e-4`) moved the validation masked MSE between 0.2335 and 0.2475, which is the size of the uncertainty a reader should attach to any single number here. Deployments requiring rigorous uncertainty quantification must measure it on their own data.
+Every value in Performance Measures comes from a single execution on one seeded draw: 12 synthetic test scenes (seeds 3000–3011), and 24 FSC-147 photographs drawn with seed 42 from the 80 pinned ones. No repetition, cross-validation or bootstrap was run, and no standard deviation or confidence interval is reported. A count error moves in steps of one object per image, so on 12 scenes a difference of 0.1 in MAE is about one object.
+
+Sources of variability: the synthetic scenes, the split, the fine-tune's example order and the model's initialisation of trainable tensors are all seeded (`synthetic_scene(seed)`, `SPLIT_SEED = 42`, `adapt(seed=0)`). CUDA and CPU kernels differ in floating-point results, so counts near the threshold can differ between devices by an object; the recorded runs state their device.
+
+The scores are sigmoid similarities, not calibrated probabilities, and the count carries no confidence of its own. A caller who needs a calibrated count must measure the count error against labelled images of their own distribution and report its dispersion over enough images.
 
 ---
 
 #### Ethical considerations and biases
 
-This section examines data sensitivity, life-critical implications, implemented mitigations, failure risks, and prohibited uses.
+No external review board or group-specific testing reviewed this pipeline.
 
 ###### Data
 
-The model weights were pre-trained by Meta AI on ImageNet-1K without labels. ImageNet's images were collected from web image search and carry their own licences and known concerns (people photographed without consent, offensive category labels in the wider ImageNet, uneven geographic coverage); the pre-training corpus is not distributed here and pre-training exposure to copyrighted or sensitive imagery cannot be ruled out. This repository distributes only open-source Python code, tests and configuration manifests; no datasets or model weight blobs are distributed through git. The tutorial's corpus is 360 research-grade iNaturalist photographs of six common North American birds (American Goldfinch, Chipping Sparrow, Dark-eyed Junco, House Finch, Song Sparrow, White-throated Sparrow; 60 per species, one per observer), each published by its observer under CC0 1.0 and fetched at run time from the iNaturalist open-data bucket by photo id with a byte-size and SHA-256 pin recorded in `samples.py`; nothing is redistributed, every record keeps its observation URL and observer login, and the photographs contain wildlife, not people. Operators supplying images must verify that their input data complies with data privacy laws (e.g., GDPR, HIPAA) and does not contain unauthorised personal identifiable information or classified material — and note that a masked autoencoder trained on private images can reproduce parts of them.
+Pretraining and training data, as the upstream authors disclose it: the Swin-B backbone was pre-trained on ImageNet-22k, BERT on BooksCorpus and English Wikipedia, GroundingDINO on the object-detection and grounding corpora its authors list, and CountGD was fine-tuned on FSC-147's 3,659 training images. The authors disclose these corpora by name; their full contents were not audited here, and whether they contain personal or sensitive material is not known — web-collected images can contain people and private scenes.
+
+This repository distributes code, the vendored model code, manifests, the tokenizer's vocabulary and configuration, and FSC-147 point and box annotations for 80 test images. It does not distribute the checkpoint (it is downloaded from the authors' Space), the converted weights, or any image: the FSC-147 photographs are downloaded at run time, and the synthetic scenes are drawn in code.
+
+The operator is responsible for the images they count or fine-tune on: whether they contain people, faces, licence plates, private premises, or proprietary products, and whether processing them is permitted. The pipeline performs no such check.
 
 ###### Human Life
 
-ViT-MAE is a research pre-training model and is **not** certified, tested or approved for life-critical applications or high-stakes decision-making. It must never be deployed as an autonomous decision-making engine in healthcare diagnostics, patient monitoring, autonomous vehicle navigation, industrial safety trips or criminal justice profiling, and a reconstruction it produces must never be presented as a photograph of what was there. Any secondary deployment in human-adjacent safety workflows demands extensive independent domain verification, redundant fail-safes and continuous human-in-the-loop oversight.
+The pipeline is not intended for decisions in health, safety, criminal justice, employment, credit or housing. It has been validated for none of them: the only evidence is the recorded runs in this repository, on synthetic scenes and 24 everyday-object photographs.
+
+Use in a sensitive domain is foreseeable — cell counting in pathology, crowd counting for safety, livestock or pest counts that trigger interventions. It would be admissible only with human review of every count that feeds a decision, validation of count error on the domain's own labelled images by people qualified in that domain, and any regulatory clearance the domain requires.
 
 ###### Mitigations
 
-This repository enforces concrete, inspectable architectural and supply-chain mitigations:
-1. **Cryptographic supply-chain locking:** Pinned to immutable commit `25b184bea5538bf5c4c852c79d221195fdd2778d`, verifying exact safetensors byte size (`447,670,680`) and SHA-256 (`479dcef4bd5df06259399027b789f21e9d9a1b79f37155a64176d55bc26fdae8`) prior to instantiation.
-2. **Pickle execution refusal:** Scans the snapshot tree and raises a fatal `RuntimeError` if any `*.bin` weight file is detected.
-3. **SSRF protection:** Rejects remote `http://` and `https://` image paths at the API boundary, accepting only validated local filesystem paths, in-memory bytes or PIL images. The public `validate_inputs` helper applies exactly these input checks and returns an input manifest of the schema, ceilings, per-image observations and verdict before the model runs.
-4. **Loss fidelity:** The pipeline's masked MSE is computed from the model's own `logits` and `mask` in the same normalised pixel space as training, and the tutorial asserts it equals the model's returned `loss` — the number reported is the objective, not a re-implementation of it.
-5. **Deterministic normalisation:** Enforces explicit L2 normalisation on the mean-pooled features, and standardises them with the training set's statistics before the probe head so the readout does not depend on feature scale.
-6. **Adaptation integrity:** `adapt` validates the dataset before any tensor is built, trains only the named decoder / encoder-block / LayerNorm tensors with every other parameter's `requires_grad` false, selects the epoch on the validation masked MSE with the frozen model as epoch 0, restores the frozen weights on any exception, discards a probe whose features no longer exist, and records the configuration and epoch history in the artifact; `from_artifact` re-verifies the base snapshot and checks the manifest's format, base identity and weight digest, the file size and SHA-256 and the exact tensor set **before** deserialising, refuses any tensor outside the declared blocks, and overlays onto a freshly loaded base.
+- **Supply-chain integrity:** the source checkpoint is pinned to Space revision `6e82e59569a84ee5c6aafa35d396f2d2bee57be2`, 1,250,122,522 bytes and SHA-256 `c1bab864b17db345b4c6e3aaabb5765bc2c0a90d0bc8defb5e664a74a50aa126`; `verify_snapshot` re-hashes the manifest entries and refuses a digest that differs from the package constants. `audit_pickle` lists the pickle's globals statically and refuses any outside five allowed names; `convert_checkpoint` refuses an audit digest other than `4606eaf365d27d2fddd901bdc069218dabbd418f9856ed2d0e3707612ad4c527` and loads with `weights_only=True`. The converted file must be 937,560,480 bytes with SHA-256 `8e44867b951e3a4205d918e022b78bc5fea218fd17c1851b864a01c421d2d443`, or loading raises; a converted file that fails is refused, not regenerated. Any other pickle-format file in the weights directory is refused. The model is loaded with `strict=True`.
+- **Input integrity:** `validate_inputs` and `count` reject remote URLs, images with a side outside 32..4096 px, more than 16 images per call, prompts that are not plain characters or exceed 64, more than three exemplar boxes, and boxes outside the image or under 2 px. `validate_dataset` rejects duplicate ids, counts that disagree with the points or boxes, and annotations outside their image, before the model runs.
+- **Statistical mitigations:** the fine-tune keeps the epoch with the lowest validation MAE, including the frozen model when no epoch beats it; a failure during training restores the base tensors. The tutorial scores a held-out set from the original distribution (FSC-147) beside the fine-tuning distribution to expose regressions.
+- **Reproducibility:** seeds control the synthetic scenes, the splits and the fine-tune order; dependencies are pinned exactly in `pyproject.toml` and version-locked in `requirements.lock.txt`; `build_provenance` records the weight digests, the source and audit digests, the runtime versions and the adapter; the tutorial notebook carries the package, the manifests and the pins, and a parity check fails when they drift.
+- **Refusals:** no `trust_remote_code`, no Hub-hosted code, no pickle on the load path; `load_artifact` refuses an adapter whose manifest names another base model, revision or weight digest, whose file digest differs, or whose tensor set differs from its recorded configuration, before deserialising it.
 
 ###### Risks and harms
 
-Key identified risks include:
-1. **Reconstruction misread as recovery:** Operators may present a decoder's prediction of hidden patches as what the hidden region contained; it is a statistical guess from ImageNet pixel priors, blurred by the pixel-MSE objective, and can hallucinate plausible content.
-2. **Probe misread as product:** A linear probe's accuracy is a measurement of the features, not a deployable classifier; shipping it as one inherits every failure of a 768-dimensional linear head trained on a few hundred photographs.
-3. **Memorisation:** continued pre-training on a small set can memorise it; on private images the reconstructions of masked regions can leak training content, and a narrow continuation can erode the features elsewhere (the tutorial re-reconstructs three drawn shapes as a small look at this, not a measurement).
-4. **Dataset bias:** the features reflect ImageNet's distribution of subjects, regions and cultural artefacts; downstream heads trained on them inherit it.
-5. **Adaptation risks:** a gain measured on an image-disjoint but observer-overlapping split can overstate transfer; and on an in-domain set the selector's honest answer may be the frozen model, which a reader expecting improvement may misread as failure.
+- **Silent over- or under-counting out of distribution.** The model returns a count and boxes with no sign that the image is unlike its training data. Dense scenes, tiny objects and unfamiliar imaging (microscopy, aerial) produce wrong counts with plausible-looking scores. The operator and anyone acting on the count bear the harm; the likelihood is high whenever such images are counted without a labelled check; the magnitude depends on what the count decides.
+- **Counting the wrong category.** Exemplar boxes alone describe appearance, not category, and count look-alike distractors; the tutorial's demo scene counts 51 shapes for 35 circles with exemplars alone. A text prompt reduces this but does not remove it for categories that look alike. The operator bears the harm; it is likely whenever distractors resemble the target.
+- **Automation bias.** A precise-looking integer invites trust. Users may accept counts without reviewing the boxes, especially at scale. Third parties affected by a count-based decision bear the harm.
+- **Regression after fine-tuning.** A fine-tune that improves one distribution can degrade another; the tutorial measures this on FSC-147, but a user who fine-tunes without a held-out set from their original distribution will not see it.
+- **Threshold misuse.** Treating the 0.23 threshold as calibrated, or the scores as probabilities, misstates confidence. Moving the threshold changes the count systematically.
+- **Data leakage in evaluation.** Near-duplicate images across training and test splits inflate the measured improvement; the split is de-duplicated by decoded pixels only, so re-encoded duplicates are not caught.
+- **Bias amplification.** Categories and scene types under-represented in FSC-147 and the pretraining corpora are likely to be counted worse; this was not measured.
 
 ###### Use cases
 
-The following use cases are strictly prohibited by policy and developer intent:
-1. Mass biometric surveillance, unauthorised facial identification or social credit tracking in public spaces, including through downstream heads trained on the features.
-2. Automated demographic profiling or discriminatory filtering in housing, lending, employment, insurance or public benefits access.
-3. Presenting reconstructions of masked or damaged regions as authentic recovered imagery in evidentiary, journalistic or medical contexts.
-4. Autonomous lethal systems or automated targeting applications.
-5. Any application that violates Meta's upstream Apache-2.0 license terms or applicable national and international privacy regulations.
+The developers consider the following uses unacceptable even where the model would work:
+
+- counting, locating or tracking people for surveillance, crowd monitoring that targets individuals, or profiling by appearance;
+- counts used for unlawful discrimination in employment, housing, credit, insurance, education or healthcare access;
+- deceptive uses, such as fabricating inventory, attendance or yield figures, or presenting an unverified count as an audited one;
+- any use prohibited by the MIT licence terms of the weights and code, by the licences of the pretraining corpora, or by the terms of the images a user supplies.
 
 ---
 
@@ -155,71 +225,83 @@ The following use cases are strictly prohibited by policy and developer intent:
 
 ### Architecture Overview
 
-ViT-MAE is an asymmetric encoder–decoder over image patches:
-- **Patchification:** 224×224 RGB input, 16×16 patches, 196 patches of 768 values each; a learned patch embedding plus fixed sine-cosine position embeddings.
-- **Encoder:** ViT-B — 12 Transformer blocks, hidden size 768, 12 heads, MLP 3072 — applied only to the visible patches (25 % by default) plus a CLS token; 85,798,656 parameters.
-- **Decoder:** 8 Transformer blocks, hidden size 512, 16 heads — applied to the encoder's tokens projected to 512 plus a shared learned mask token at every hidden position, with its own position embeddings, predicting 768 pixel values per patch; 26,109,184 parameters.
-- **Loss Formulation:** mean squared error between predicted and true pixels over the hidden patches only, in the processor's normalised pixel space (`norm_pix_loss = false` in this checkpoint):
-  $$\mathcal{L} = \frac{1}{|M|} \sum_{p \in M} \frac{1}{768} \lVert \hat{x}_p - x_p \rVert_2^2$$
-  where $M$ is the set of hidden patches, $x_p$ the true pixels of patch $p$ and $\hat{x}_p$ the decoder's prediction.
+- **Image backbone:** Swin-B (patch size 4, window 12, ImageNet-22k pre-training at 384 px), features at three scales plus one extra level, projected to 256 channels.
+- **Text encoder:** BERT-base (uncased), up to 256 tokens; the caption is `<label> .`, and each exemplar is inserted as an extra token.
+- **Feature enhancer and encoder:** six layers of multi-scale deformable self-attention over the image features with text–image cross-attention (bi-directional fusion).
+- **Decoder:** six layers, 900 queries, deformable cross-attention to the image and cross-attention to the text; one box head shared by the six layers and the encoder output (`dec_pred_bbox_embed_share=True`).
+- **Exemplar tokens:** each exemplar box is pooled from the image features by RoI alignment and added to the prompt tokens.
+- **Output reading:** a query counts when the maximum over prompt tokens of its sigmoid similarity exceeds the threshold; its box is returned in input pixels and its centre as the point.
 
 ### Checkpoint Invariants and Loading Controls
 
-The snapshot loader (`vit_mae_pipeline.model.load_components`) enforces strict supply-chain controls:
-1. Pinned Hugging Face repository: `facebook/vit-mae-base`
-2. Pinned commit revision: `25b184bea5538bf5c4c852c79d221195fdd2778d`
-3. Primary weight file: `model.safetensors`
-4. Expected weight byte size: `447,670,680` bytes
-5. Expected weight SHA-256: `479dcef4bd5df06259399027b789f21e9d9a1b79f37155a64176d55bc26fdae8`
-6. Upstream parameters: `111,907,840` F32 parameters (encoder 85,798,656; decoder 26,109,184)
-7. Execution policy: `trust_remote_code=False`, `use_safetensors=True`, `local_files_only=True`
-8. Adapter artifact format: `org.valcorza.vit-mae-base.adapter.v1` — `adapter.safetensors` (the trained tensors plus the probe head and its standardisation statistics when a probe is fitted; 174 tensors, 161,190,912 bytes for the default two blocks with the probe) plus `manifest.json` naming the base id, revision and `model.safetensors` digest, the objective, mask ratio and trainable blocks, the probe record, the tensor names, the file size and SHA-256, the training configuration and the epoch history
-9. Tutorial corpus: 360 iNaturalist photographs (CC0 1.0; six species, 60 each, one per observer), `CORPUS_BYTES = 39,223,447`, each pinned by photo id, byte size and SHA-256 in `vit_mae_pipeline/samples.py` and fetched from `https://inaturalist-open-data.s3.amazonaws.com/photos/<id>/medium.<ext>`; split 216 / 48 / 96 by `build_sample_dataset(seed=42)`
-10. Build record (CPU, 2026-09-21): the default tutorial path run through the package API on the build workstation's CPU (`torch 2.14.0`, `transformers 4.57.6`, Python 3.12, `CUDA_VISIBLE_DEVICES=-1`, snapshot and photographs pre-staged) — split 216 / 48 / 96 (seed 42), the frozen model reconstructed the 96 test photographs in 4.4 s and was probed in 28.8 s, 5 epochs of the default recipe (lr `1e-5`, 2 blocks, batch 8) in 159.1 s (validation masked MSE 0.2335 → 0.2338 → 0.2338 → 0.2332 → 0.2334 → 0.2337, epoch 3 kept), the adapter 174 tensors / 161,190,912 bytes with reload parity 0 (max abs masked-MSE difference over eight test photographs) and 8 of 8 identical probe decisions; comparison {reconstruction: {masked_mse: {mean_patch_fill: 0.7652, blur_fill: 0.5452, frozen: 0.2281, adapted: 0.228}, masked_mse_median: {mean_patch_fill: 0.6763, blur_fill: 0.4753, frozen: 0.1801, adapted: 0.1827}, masked_mse_visible: {mean_patch_fill: 0.0, blur_fill: 0.0, frozen: 0.2794, adapted: 0.2789}, psnr_masked: {mean_patch_fill: 14.0797, blur_fill: 15.5516, frozen: 19.3365, adapted: 19.3375}}, reconstruction_delta_vs_frozen: {masked_mse: -5e-05, masked_mse_median: 0.00261, masked_mse_visible: -0.00054, psnr_masked: 0.00104}, validation_masked_mse: {frozen: 0.2335, selected_epoch: 3, selected: 0.2332}, probe: {accuracy: {majority: 0.167, colour_neighbour: 0.26, knn_frozen: 0.219, knn_adapted: 0.219, frozen: 0.365, adapted: 0.365}, macro_f1: {majority: 0.048, colour_neighbour: 0.261, knn_frozen: 0.216, knn_adapted: 0.216, frozen: 0.365, adapted: 0.365}}, probe_delta_vs_frozen: {accuracy: 0.0, macro_f1: 0.0}, by_species: {american_goldfinch: {n: 16, frozen_recall: 0.69, adapted_recall: 0.69, frozen_f1: 0.56, adapted_f1: 0.56}, chipping_sparrow: {n: 16, frozen_recall: 0.25, adapted_recall: 0.25, frozen_f1: 0.22, adapted_f1: 0.22}, dark_eyed_junco: {n: 16, frozen_recall: 0.38, adapted_recall: 0.38, frozen_f1: 0.36, adapted_f1: 0.36}, house_finch: {n: 16, frozen_recall: 0.31, adapted_recall: 0.31, frozen_f1: 0.45, adapted_f1: 0.45}, song_sparrow: {n: 16, frozen_recall: 0.31, adapted_recall: 0.31, frozen_f1: 0.33, adapted_f1: 0.33}, white_throated_sparrow: {n: 16, frozen_recall: 0.25, adapted_recall: 0.25, frozen_f1: 0.26, adapted_f1: 0.26}}}. Recorded in `docs/release-verification.md` as a pre-flight. Executed 2026-09-21: the **committed notebook blob** (`eb708a9` / `06bc11b5`) run top-to-bottom on a clean Kaggle Tesla T4 kernel (`kurtvalcorza/dimer-nb2-vit-mae-pretraining` v1, `torch 2.14.0+cu130`, `transformers 4.57.6`, Python 3.12.13, `cuda`, empty Hugging Face cache, no repository checkout, blob SHA-1 verified against GitHub before execution): 14/14 ok (1 restart after install cell), 366.8 s, 370 files, 487 MB fetched from the Hub and digest-verified inside the notebook; five epochs in 25.1 s (validation masked MSE 0.2335 → 0.2338 → 0.2338 → 0.2332 → 0.2334 → 0.2337, epoch 3 kept); comparison {reconstruction: {masked_mse: {mean_patch_fill: 0.7652, blur_fill: 0.5452, frozen: 0.2281, adapted: 0.228}, masked_mse_median: {mean_patch_fill: 0.6763, blur_fill: 0.4753, frozen: 0.1801, adapted: 0.1827}, masked_mse_visible: {mean_patch_fill: 0.0, blur_fill: 0.0, frozen: 0.2794, adapted: 0.2789}, psnr_masked: {mean_patch_fill: 14.0797, blur_fill: 15.5516, frozen: 19.3365, adapted: 19.3375}}, reconstruction_delta_vs_frozen: {masked_mse: -5e-05, masked_mse_median: 0.00261, masked_mse_visible: -0.00054, psnr_masked: 0.00104}, validation_masked_mse: {frozen: 0.2335, selected_epoch: 3, selected: 0.2332, rescored: 0.2332}, probe: {accuracy: {majority: 0.167, colour_neighbour: 0.26, knn_frozen: 0.219, knn_adapted: 0.219, frozen: 0.365, adapted: 0.365}, macro_f1: {majority: 0.048, colour_neighbour: 0.261, knn_frozen: 0.216, knn_adapted: 0.216, frozen: 0.365, adapted: 0.365}}, probe_delta_vs_frozen: {accuracy: 0.0, macro_f1: 0.0}, by_species: {american_goldfinch: {n: 16, frozen_recall: 0.69, adapted_recall: 0.69, frozen_f1: 0.56, adapted_f1: 0.56}, chipping_sparrow: {n: 16, frozen_recall: 0.25, adapted_recall: 0.25, frozen_f1: 0.22, adapted_f1: 0.22}, dark_eyed_junco: {n: 16, frozen_recall: 0.38, adapted_recall: 0.38, frozen_f1: 0.36, adapted_f1: 0.36}, house_finch: {n: 16, frozen_recall: 0.31, adapted_recall: 0.31, frozen_f1: 0.45, adapted_f1: 0.45}, song_sparrow: {n: 16, frozen_recall: 0.31, adapted_recall: 0.31, frozen_f1: 0.33, adapted_f1: 0.33}, white_throated_sparrow: {n: 16, frozen_recall: 0.25, adapted_recall: 0.25, frozen_f1: 0.26, adapted_f1: 0.26}}}; reload parity {max_abs_masked_mse_difference: 0.0, identical_reconstructions: 8, identical_probe_decisions: 8, max_abs_probe_score_difference: 1.1920928955078125e-06, of: 8}. Not executed: any corpus other than the one 360-photograph iNaturalist sample, repeated seeds or splits (no dispersion), BYOD, and the adapted model on any photographs but that test split.
+The loader (`countgd_pipeline.model.load_components`, called by `CountGDPipeline.from_pretrained`) enforces:
+
+1. Pinned source: the Hugging Face Space `nikigoli/countgd` at revision `6e82e59569a84ee5c6aafa35d396f2d2bee57be2`, manifest `weights/countgd/dimer-base-manifest.json` (the Space `README.md` and `checkpoint_best_regular.pth`).
+2. Source checkpoint: `checkpoint_best_regular.pth`, 1,250,122,522 bytes, SHA-256 `c1bab864b17db345b4c6e3aaabb5765bc2c0a90d0bc8defb5e664a74a50aa126`; byte-identical to the Google Drive file linked by the upstream README at commit `b6f362b3f5cd20db4a171faa410dfed8f2f466d8`.
+3. Pickle audit: globals `argparse.Namespace`, `collections.OrderedDict`, `torch.FloatStorage`, `torch.LongStorage`, `torch._utils._rebuild_tensor_v2`; audit digest `4606eaf365d27d2fddd901bdc069218dabbd418f9856ed2d0e3707612ad4c527`; restricted load with `weights_only=True` and only `argparse.Namespace` added.
+4. Served file: `countgd.safetensors`, 937,560,480 bytes, SHA-256 `8e44867b951e3a4205d918e022b78bc5fea218fd17c1851b864a01c421d2d443`; 1,042 stored tensors and 66 tied-head aliases in the one metadata entry `countgd_aliases`; 38 unused `feature_map_encoder.*` tensors of the source dropped. Its tensor data are byte-identical to the authors' own safetensors export on the Hub (`nikigoli/CountGD`).
+5. Parameters: 233,362,816 (float32); loaded with `strict=True`.
+6. Tokenizer: `google-bert/bert-base-uncased` at revision `86b5e0934494bd15c9632b12f734a8a67f723594` (vocabulary and configuration only; BERT's weights come from the checkpoint).
+7. Execution policy: no `trust_remote_code`, no Hub-hosted code, no pickle on the load path; the multi-scale deformable attention runs in pure PyTorch.
+8. Adapter artifact format: `org.valcorza.countgd.adapter.v1` — `adapter.safetensors` (the trained tensors: 3,619,584 parameters for the default two decoder layers, the decoder norm and the shared box head) plus `manifest.json` naming the base id, revision and `countgd.safetensors` digest, the objective, the tensor names, the file's size and SHA-256, the configuration and the history.
+9. Tutorial data: 80 FSC-147 test photographs (2,732,222 bytes) from `isentropic/FSC147` at revision `3e420cb6537e803dd6d4516623ce82a79c0317b8`, each pinned by byte size and SHA-256 in `countgd_pipeline/samples.py`; synthetic scenes from `countgd_pipeline/synthetic.py`.
 
 ### Public Inference API
 
 ```python
-from vit_mae_pipeline import load_pipeline
+from countgd_pipeline import CountGDPipeline, synthetic_scene
 
-pipe = load_pipeline(device="cpu")
-
-# 1. Masked-patch reconstruction (a seeded random 75 % of the patches hidden)
-result = pipe.reconstruct("scene.jpg", mask_ratio=0.75, seed=0)
-entry = result["results"][0]
-entry["masked_mse"], entry["visible_mse"], entry["hidden_patches"], entry["mask"]
-entry["reconstruction"].save("scene_reconstructed.png")
-result["model_loss"]                       # the checkpoint's own loss == mean masked_mse
-
-# 2. Dense feature embeddings (mean of the patch tokens, nothing hidden, L2-normalised)
-features = pipe.embed(["scene1.jpg", "scene2.jpg"])["embeddings"]   # (2, 768)
+pipe = CountGDPipeline.from_pretrained()
+scene = synthetic_scene(1)
+result = pipe.count(scene["image"], text=scene["label"], exemplars=scene["exemplars"])
+print(result["results"][0]["count"], result["threshold"])
 ```
 
 ### Public Adaptation API
 
 ```python
-from vit_mae_pipeline import ViTMAEPipeline, build_sample_dataset, fetch_corpus, read_corpus
+from countgd_pipeline import CountGDPipeline, build_synthetic_dataset
 
-splits = build_sample_dataset(read_corpus(fetch_corpus()), seed=42)  # 216 / 48 / 96 photographs
-pipe = ViTMAEPipeline.from_pretrained(weights_dir="weights/vit-mae-base")
-
-frozen = pipe.evaluate_reconstruction(splits["test"], seed=0)   # masked_mse, psnr_masked, per_image, baselines
-pipe.fit_probe(splits["train"]); probe = pipe.evaluate(splits["test"])   # accuracy, macro_f1, per_class, knn
-result = pipe.adapt(splits["train"], splits["validation"],
-                    epochs=5, lr=1e-5, batch_size=8, trainable_blocks=2)   # labels unused
-adapted = pipe.evaluate_reconstruction(splits["test"], seed=0)
-pipe.fit_probe(splits["train"]); pipe.evaluate(splits["test"])
-pipe.save_artifact("outputs/adapter")                          # adapter.safetensors (+ probe head) + manifest.json
-again = ViTMAEPipeline.from_artifact("outputs/adapter", weights_dir="weights/vit-mae-base")
+splits = build_synthetic_dataset()
+pipe = CountGDPipeline.from_pretrained()
+frozen = pipe.evaluate(splits["test"])
+report = pipe.adapt(splits["train"], splits["validation"], epochs=4, lr=2e-4)
+adapted = pipe.evaluate(splits["test"])
+pipe.save_artifact("outputs/adapter")
+reloaded = CountGDPipeline.from_artifact("outputs/adapter")
 ```
 
-Dataset contract (`samples.py`): records `{id, image, label}` (`id` matching `[A-Za-z0-9_.:-]{1,64}` and unique; a PIL image or a decodable file with sides in `MIN_IMAGE_SIDE = 16` .. `MAX_IMAGE_SIDE = 4096`; a label of at most 64 plain characters, required by the probe and optional for the reconstruction contract); `validate_dataset(records, *, min_records=8, max_records=20000, require_labels=True)` (2..100 labels); `split_dataset(records, *, val_fraction=0.15, test_fraction=0.2, seed=0)` (stratified, pixel-digest de-duplicated); `check_split_disjoint(splits)`; `observer_overlap(splits)`; `load_byod_dataset(path)` (directory or zip with `labels.csv`: `id`, `file`, `label`); `write_dataset_csv(records, path)`; `fetch_corpus(cache_dir=None)`, `read_corpus(files)`, `build_sample_dataset(records, *, seed=42, sizes=SAMPLE_SPLIT)`. Metrics (`metrics.py`): `masked_mse`, `psnr_from_mse`, `reconstruction_metrics(rows, *, mask_ratio)`, `mean_patch_fill`, `blur_fill`, `classification_metrics(scores, gold, classes)`, `knn_scores`, `majority_baseline(train, records, classes)`, `colour_signature(image)`, `colour_neighbour_baseline(train, records, classes)`.
+### Verification records
+
+- **Date:** 2026-09-24
+- **Subject:** `tutorials/countgd_object_counting_colab.ipynb` at commit `8d61b94`, Git blob `c619a762`
+- **Runtime:** CPU only, Python 3.12, `torch 2.14.0`, `transformers 4.57.6`
+- **Procedure:** fresh Jupyter kernel, all cells in order, the pinned dependencies already installed, the source checkpoint pre-staged; the notebook fetched the Space card, the tokenizer and the photographs, and converted the checkpoint itself
+- **Observed result:** 0 errors in 1,281.8 s; the pinned converted digest reproduced in the kernel; the values in Performance Measures; demo scene 35 / 51 / 35 → 35 / 35 / 35 (text / exemplars / both); reload parity 4 / 4 identical counts
+- **Caveats:** a pre-flight on the build workstation, not a clean hosted runtime; one seeded draw, not an evaluation of FSC-147
+
+- **Date:** 2026-09-24
+- **Subject:** the same notebook, commit `8d61b94`, Git blob `c619a762`
+- **Runtime:** Kaggle Tesla T4, Python 3.12.13, `torch 2.14.0+cu130`, `transformers 4.57.6`, installed by the notebook from its own pins
+- **Procedure:** clean container with no repository checkout and empty caches, `Run all` in a fresh interpreter, all form fields at their defaults; the notebook fetched the checkpoint from the Space and converted it on the runtime
+- **Observed result:** 16 / 16 code cells ok, one interpreter restart after the install cell, 468.7 s; synthetic test MAE 7.417 → 1.583, box F1 0.453 → 0.546; FSC-147 MAE 4.542 → 3.542; kept epoch 2 (validation MAE 0.875); reload parity 4 / 4 identical counts
+- **Caveats:** the fine-tune's result differs from the CPU run because CUDA kernels are not bit-deterministic; one observation on one seeded draw
 
 ### Upstream References and Citations
 
-- **MAE Paper:** He, Chen, Xie, Li, Dollár and Girshick, *"Masked Autoencoders Are Scalable Vision Learners"*, CVPR 2022, arXiv:2111.06377.
-- **Backbone:** Dosovitskiy et al., *"An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"*, ICLR 2021, arXiv:2010.11929.
-- **Pre-training data:** Russakovsky et al., *"ImageNet Large Scale Visual Recognition Challenge"*, IJCV 2015 (ImageNet-1K, used without labels).
-- **Upstream Repository:** https://github.com/facebookresearch/mae — served through Hugging Face Transformers (`ViTMAEForPreTraining`).
-- **Sibling row in this fleet:** `siglip-v1-zero-shot-pipeline`, sharing this repository's tutorial corpus and code shape.
-- **Tutorial corpus:** iNaturalist open data (CC0 photographs under each observer's own licence), https://www.inaturalist.org/pages/developers — bucket https://inaturalist-open-data.s3.amazonaws.com/
+- CountGD code: https://github.com/niki-amini-naieni/CountGD (MIT)
+- CountGD Space (pinned checkpoint host): https://huggingface.co/spaces/nikigoli/countgd
+- Amini-Naieni, N., Han, T. and Zisserman, A. (2024). *CountGD: Multi-Modal Open-World Counting.* NeurIPS 2024. https://arxiv.org/abs/2407.04619
+- Liu, S. et al. (2023). *Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection.* https://arxiv.org/abs/2303.05499
+- Ranjan, V., Sharma, U., Nguyen, T. and Hoai, M. (2021). *Learning To Count Everything.* CVPR 2021 (FSC-147). https://github.com/cvlab-stonybrook/LearningToCountEverything
+- FSC-147 Hub mirror: https://huggingface.co/datasets/isentropic/FSC147
+- BERT tokenizer: https://huggingface.co/google-bert/bert-base-uncased
+
+```bibtex
+@inproceedings{AminiNaieni24,
+    author    = "Amini-Naieni, N. and Han, T. and Zisserman, A.",
+    title     = "CountGD: Multi-Modal Open-World Counting",
+    booktitle = "NeurIPS",
+    year      = "2024",
+}
+```

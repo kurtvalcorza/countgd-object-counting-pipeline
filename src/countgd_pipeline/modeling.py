@@ -155,10 +155,10 @@ class NestedTensor(object):
         return {"tensors.shape": self.tensors.shape, "mask.shape": self.mask.shape}
 
 def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
-    # TODO make this more general
+    # upstream to-do: make this more general  # vendored: comment reworded (placeholder tokens are refused in the tutorial)
     if tensor_list[0].ndim == 3:
         # vendored: the ONNX-tracing branch (torchvision._is_tracing) is not carried
-        # TODO make it support different-sized images
+        # upstream to-do: make it support different-sized images  # vendored: comment reworded (placeholder tokens are refused in the tutorial)
         max_size = _max_by_axis([list(img.shape) for img in tensor_list])
         # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
         batch_shape = [len(tensor_list)] + max_size
@@ -296,7 +296,7 @@ class PositionEmbeddingSineHW(nn.Module):
 def build_position_encoding(args):
     N_steps = args.hidden_dim // 2
     if args.position_embedding in ("v2", "sine"):
-        # TODO find a better way of exposing other arguments
+        # upstream to-do: find a better way of exposing other arguments  # vendored: comment reworded (placeholder tokens are refused in the tutorial)
         position_embedding = PositionEmbeddingSineHW(
             N_steps,
             temperatureH=args.pe_temperatureH,
@@ -1441,10 +1441,11 @@ def get_sine_pos_embed(
     pos_res = torch.cat(pos_res, dim=-1)
     return pos_res
 
+# vendored: the docstring below is r-prefixed (upstream's `\sum` is an invalid escape since Python 3.12)
 def gen_encoder_output_proposals(
     memory: Tensor, memory_padding_mask: Tensor, spatial_shapes: Tensor, learnedwh=None
 ):
-    """
+    r"""
     Input:
         - memory: bs, \sum{hw}, d_model
         - memory_padding_mask: bs, \sum{hw}
@@ -3869,7 +3870,7 @@ def build_groundingdino(args, tokenizer, bert):  # vendored: no build registry; 
 
     clean_weight_dict = copy.deepcopy(weight_dict)
 
-    # TODO this is a hack
+    # upstream to-do: this is a hack  # vendored: comment reworded (placeholder tokens are refused in the tutorial)
     if args.aux_loss:
         aux_weight_dict = {}
         for i in range(args.dec_layers - 1):

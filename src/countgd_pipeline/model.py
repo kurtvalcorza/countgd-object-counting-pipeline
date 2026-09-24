@@ -1,9 +1,12 @@
 # ruff: noqa: E501
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
+import pickletools
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,14 +18,24 @@ from safetensors import safe_open
 from transformers import AutoTokenizer, BertConfig, BertModel
 
 from .config import (
-    ALLOWED_CHECKPOINT_FILES,
+    ALIAS_METADATA_KEY,
     DEFAULT_MODEL_KEY,
+    DROPPED_PREFIX,
     MODEL_CONFIG,
     MODEL_FILENAME,
     MODEL_ID,
+    MODEL_REPO_TYPE,
     MODEL_REVISION,
     MODEL_SHA256,
     MODEL_SIZE_BYTES,
+    PICKLE_ALLOWED_GLOBALS,
+    PICKLE_AUDIT_SHA256,
+    SOURCE_CKPT_NAME,
+    SOURCE_CKPT_SHA256,
+    SOURCE_CKPT_SIZE_BYTES,
+    SOURCE_STATE_KEY,
+    SOURCE_STATE_TENSORS,
+    STATE_TENSORS,
     TOKENIZER_FILES,
     TOKENIZER_KEY,
     TOKENIZER_MODEL_ID,
@@ -35,10 +48,12 @@ MANIFEST_NAME = "dimer-base-manifest.json"
 #: Fleet snapshot scheme (DIMER NOTEBOOK_SPEC 1.1 MOD13): the pinned files live in repository-local
 #: snapshot directories named by their keys and described by committed manifests; a standalone notebook
 #: carries the manifests inline and stages/verifies working-directory copies. Two snapshots here: the
-#: CountGD weights and the BERT tokenizer (vocabulary + configurations, no weights).
+#: CountGD checkpoint (the authors' Space) and the BERT tokenizer (vocabulary + configurations, no weights).
 _WEIGHTS_ROOT = Path(__file__).resolve().parents[2] / "weights"
-DEFAULT_WEIGHTS_DIR = Path(__file__).resolve().parents[2] / "weights" / DEFAULT_MODEL_KEY
+DEFAULT_WEIGHTS_DIR = _WEIGHTS_ROOT / DEFAULT_MODEL_KEY
 TOKENIZER_WEIGHTS_DIR = _WEIGHTS_ROOT / TOKENIZER_KEY
+DEFAULT_CACHE_DIR = Path.home() / ".cache" / "countgd-object-counting-pipeline"
+_PICKLE_STRING_OPS = ("SHORT_BINUNICODE", "BINUNICODE", "UNICODE", "BINUNICODE8")
 
 
 def _sha256(path: Path) -> str:
@@ -68,40 +83,170 @@ def _check_manifest_files(root: Path, manifest: dict[str, Any]) -> None:
             raise RuntimeError(f"SHA-256 mismatch for {rel_path}")
 
 
+def _refuse_unsafe(root: Path, *, allowed: tuple[str, ...] = ()) -> None:
+    unsafe = sorted(p.name for p in root.iterdir() if p.is_file() and p.suffix.lower() in UNSAFE_WEIGHT_EXTENSIONS and p.name not in allowed)
+    if unsafe:
+        raise RuntimeError(f"Refusing unsafe weight files: {unsafe}")
+
+
+# ------------------------------------------------------------------ the source checkpoint: pin, audit, convert
+
+
+def verify_source(snapshot_path: str | Path) -> dict[str, Any]:
+    """Assert the pinned byte count and SHA-256 of the source checkpoint `checkpoint_best_regular.pth`."""
+    path = Path(snapshot_path) / SOURCE_CKPT_NAME
+    if not path.is_file():
+        raise RuntimeError(f"source checkpoint missing: {path}")
+    size = path.stat().st_size
+    if size != SOURCE_CKPT_SIZE_BYTES:
+        raise RuntimeError(f"Unexpected {SOURCE_CKPT_NAME} size: {size}; expected {SOURCE_CKPT_SIZE_BYTES}")
+    digest = _sha256(path)
+    if digest != SOURCE_CKPT_SHA256:
+        raise RuntimeError(f"Unexpected {SOURCE_CKPT_NAME} SHA-256: {digest}; expected {SOURCE_CKPT_SHA256}")
+    return {"path": str(path), "bytes": size, "sha256": digest}
+
+
+def audit_pickle(path: str | Path) -> dict[str, Any]:
+    """Statically list every global a torch zip checkpoint's pickles would import, executing nothing, and refuse
+    any name outside `PICKLE_ALLOWED_GLOBALS`. A file that is not a torch zip archive is refused outright."""
+    path = Path(path)
+    if not zipfile.is_zipfile(path):
+        raise ValueError(f"{path.name} is not a torch zip archive; refusing to audit a bare pickle")
+    found: set[str] = set()
+    members: list[str] = []
+    with zipfile.ZipFile(path) as archive:
+        for name in archive.namelist():
+            if not name.endswith(".pkl"):
+                continue
+            members.append(name)
+            strings: list[str] = []
+            for op, arg, _ in pickletools.genops(archive.read(name)):
+                if op.name in _PICKLE_STRING_OPS:
+                    strings.append(arg)
+                elif op.name == "GLOBAL":
+                    found.add(str(arg).replace(" ", "."))
+                elif op.name == "STACK_GLOBAL":
+                    if len(strings) < 2:
+                        raise ValueError(f"{name}: STACK_GLOBAL without a preceding module and name")
+                    found.add(f"{strings[-2]}.{strings[-1]}")
+    if not members:
+        raise ValueError(f"{path.name} holds no pickle member")
+    names = sorted(found)
+    violations = sorted(set(names) - set(PICKLE_ALLOWED_GLOBALS))
+    if violations:
+        raise ValueError(f"{path.name}: pickle names globals outside the allow-list: {violations}")
+    return {"members": members, "globals": names, "violations": violations, "audit_sha256": hashlib.sha256("\n".join(names).encode()).hexdigest()}
+
+
+def verify_converted(snapshot_path: str | Path) -> dict[str, Any]:
+    """Assert the pinned byte count and SHA-256 of the converted `countgd.safetensors`."""
+    path = Path(snapshot_path) / MODEL_FILENAME
+    if not path.is_file():
+        raise RuntimeError(f"Pinned checkpoint is missing {MODEL_FILENAME}")
+    size = path.stat().st_size
+    if size != MODEL_SIZE_BYTES:
+        raise RuntimeError(f"Unexpected {MODEL_FILENAME} size: {size}; expected {MODEL_SIZE_BYTES}")
+    digest = _sha256(path)
+    if digest != MODEL_SHA256:
+        raise RuntimeError(f"Unexpected {MODEL_FILENAME} SHA-256: {digest}; expected {MODEL_SHA256}")
+    return {"path": str(path), "bytes": size, "sha256": digest}
+
+
+def _tied_aliases(state: dict[str, torch.Tensor]) -> dict[str, str]:
+    """Group tensors that share storage, offset, shape and stride; the lexicographically first name of each group
+    is stored and the others are recorded as aliases of it."""
+    groups: dict[tuple[Any, ...], list[str]] = {}
+    for name, tensor in state.items():
+        key = (tensor.untyped_storage().data_ptr(), tensor.storage_offset(), tuple(tensor.shape), tuple(tensor.stride()))
+        groups.setdefault(key, []).append(name)
+    aliases: dict[str, str] = {}
+    for names in groups.values():
+        canonical = min(names)
+        aliases.update({name: canonical for name in names if name != canonical})
+    return aliases
+
+
+def convert_checkpoint(snapshot_path: str | Path) -> dict[str, Any]:
+    """One-time conversion of the pinned pickle into the served safetensors file (fleet asset spec §11.2).
+
+    Size + digest check → static pickle audit and audit-digest check → `torch.load(weights_only=True)` with only
+    `argparse.Namespace` added to torch's restricted set → the `model` state dict (1,146 tensors) without the 38
+    `feature_map_encoder.*` tensors → tied box-head tensors stored once, their aliases in one metadata entry →
+    `countgd.safetensors` → pinned size + digest check. Deterministic: the same source bytes give the same file."""
+    from safetensors.torch import save_file
+
+    root = Path(snapshot_path)
+    source = verify_source(root)
+    audit = audit_pickle(root / SOURCE_CKPT_NAME)
+    if audit["audit_sha256"] != PICKLE_AUDIT_SHA256:
+        raise ValueError(f"pickle audit digest {audit['audit_sha256']} != pinned {PICKLE_AUDIT_SHA256}")
+    with torch.serialization.safe_globals([argparse.Namespace]):
+        payload = torch.load(root / SOURCE_CKPT_NAME, map_location="cpu", weights_only=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get(SOURCE_STATE_KEY), dict):
+        raise ValueError(f"{SOURCE_CKPT_NAME} did not unpickle to a checkpoint with a '{SOURCE_STATE_KEY}' state dict")
+    state = payload[SOURCE_STATE_KEY]
+    if any(not isinstance(v, torch.Tensor) for v in state.values()) or len(state) != SOURCE_STATE_TENSORS:
+        raise ValueError(f"{SOURCE_CKPT_NAME}: '{SOURCE_STATE_KEY}' is not {SOURCE_STATE_TENSORS} tensors")
+    kept = {k: v for k, v in state.items() if not k.startswith(DROPPED_PREFIX)}
+    dropped = len(state) - len(kept)
+    if len(kept) != STATE_TENSORS:
+        raise ValueError(f"converted state has {len(kept)} entries; expected {STATE_TENSORS}")
+    aliases = _tied_aliases(kept)
+    tensors = {k: v.contiguous() for k, v in kept.items() if k not in aliases}
+    target = root / MODEL_FILENAME
+    save_file(tensors, str(target), metadata={ALIAS_METADATA_KEY: json.dumps(aliases, sort_keys=True, separators=(",", ":"))})
+    converted = verify_converted(root)
+    return {
+        "source": source,
+        "audit": audit,
+        "checkpoint": {"epoch": payload.get("epoch"), "unread_entries": sorted(k for k in payload if k != SOURCE_STATE_KEY)},
+        "tensors_stored": len(tensors),
+        "aliases": len(aliases),
+        "dropped": dropped,
+        "converted": converted,
+    }
+
+
+def ensure_converted(snapshot_path: str | Path) -> dict[str, Any]:
+    """Return the verified converted file, converting from the pinned source first when it is absent. A converted
+    file that exists but fails its digest is refused, not silently regenerated."""
+    root = Path(snapshot_path)
+    if (root / MODEL_FILENAME).is_file():
+        return {"converted_this_run": False, **verify_converted(root)}
+    report = convert_checkpoint(root)
+    return {"converted_this_run": True, **report["converted"], "report": report}
+
+
+# ------------------------------------------------------------------ snapshot verification
+
+
 def verify_checkpoint(
     snapshot_path: str | Path,
     *,
-    require_configs: bool = False,
+    require_source: bool = False,
     return_manifest_verified: bool = False,
 ) -> Path | tuple[Path, bool]:
-    """Verify the CountGD snapshot: no unsafe formats, the manifest's sizes and digests when present, and the
-    pinned `model.safetensors` byte count and SHA-256 always."""
+    """Verify a CountGD weights directory for loading: no unsafe formats other than the audited source checkpoint,
+    the manifest's sizes and digests when a manifest is present (always when `require_source`), and the pinned
+    byte count and SHA-256 of `countgd.safetensors` always."""
     root = Path(snapshot_path)
     if not root.is_dir():
         raise RuntimeError(f"Checkpoint directory does not exist: {root}")
-    weight_path = root / MODEL_FILENAME
-    if not weight_path.is_file():
-        raise RuntimeError(f"Pinned checkpoint is missing {MODEL_FILENAME}")
-    unsafe = sorted(p.name for p in root.iterdir() if p.is_file() and p.suffix.lower() in UNSAFE_WEIGHT_EXTENSIONS)
-    if unsafe:
-        raise RuntimeError(f"Refusing unsafe weight files: {unsafe}")
+    _refuse_unsafe(root, allowed=(SOURCE_CKPT_NAME,))
     manifest_path = root / MANIFEST_NAME
     manifest_verified = False
-    if manifest_path.is_file():
+    if manifest_path.is_file() and (require_source or (root / SOURCE_CKPT_NAME).is_file()):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception as exc:
             raise RuntimeError(f"Corrupt manifest {MANIFEST_NAME}: {exc}") from exc
         _check_manifest_files(root, manifest)
         manifest_verified = True
-    size = weight_path.stat().st_size
-    if size != MODEL_SIZE_BYTES:
-        raise RuntimeError(f"Unexpected {MODEL_FILENAME} size: {size}; expected {MODEL_SIZE_BYTES}")
-    digest = _sha256(weight_path)
-    if digest != MODEL_SHA256:
-        raise RuntimeError(f"Unexpected {MODEL_FILENAME} SHA-256: {digest}; expected {MODEL_SHA256}")
-    if require_configs and not (root / "config.json").is_file():
-        raise RuntimeError("Missing required configuration file: config.json")
+    elif require_source:
+        raise RuntimeError(f"Missing {MANIFEST_NAME} at {root}")
+    if require_source:
+        verify_source(root)
+    verify_converted(root)
     if return_manifest_verified:
         return root, manifest_verified
     return root
@@ -124,16 +269,17 @@ def _read_manifest(root: Path, model_id: str, revision: str) -> dict[str, Any]:
 
 
 def verify_snapshot(path: str | Path | None = None) -> dict[str, Any]:
-    """Manifest-driven verification of the CountGD snapshot directory; raise on the first mismatch.
+    """Manifest-driven verification of the CountGD source snapshot; raise on the first mismatch.
 
-    The identity in the manifest must be the pinned one; every manifest entry is then size- and SHA-256-checked
-    by :func:`verify_checkpoint` (which also asserts the weight file's pinned digest and byte count and refuses
-    unsafe formats). Returns ``{"path": ..., **manifest}``."""
+    The manifest's identity must be the pinned Space revision; every entry is size- and SHA-256-checked, the
+    source checkpoint is held to the package's own pins as well (the constants win over an edited manifest), and
+    no unsafe file other than that checkpoint may sit in the directory. The converted file is checked by
+    :func:`ensure_converted` / :func:`verify_converted`. Returns ``{"path": ..., **manifest}``."""
     root = Path(path) if path is not None else DEFAULT_WEIGHTS_DIR
     manifest = _read_manifest(root, MODEL_ID, MODEL_REVISION)
-    _, manifest_verified = verify_checkpoint(root, require_configs=True, return_manifest_verified=True)
-    if not manifest_verified:
-        raise RuntimeError(f"manifest at {root} was not verified")  # pragma: no cover
+    _refuse_unsafe(root, allowed=(SOURCE_CKPT_NAME,))
+    _check_manifest_files(root, manifest)
+    verify_source(root)
     return {"path": str(root), **manifest}
 
 
@@ -151,23 +297,23 @@ def verify_tokenizer_snapshot(path: str | Path | None = None) -> dict[str, Any]:
     return {"path": str(root), **manifest}
 
 
-def _hub_download(model_id: str, revision: str) -> Callable[[str, Path], None]:
+def _hub_download(model_id: str, revision: str, repo_type: str = "model") -> Callable[[str, Path], None]:
     def fetch(relative_path: str, root: Path) -> None:
         from huggingface_hub import hf_hub_download
 
-        hf_hub_download(model_id, relative_path, revision=revision, local_dir=str(root))
+        hf_hub_download(model_id, relative_path, revision=revision, repo_type=repo_type, local_dir=str(root))
 
     return fetch
 
 
-def _stage_missing(root: Path, model_id: str, revision: str, *, allow_download: bool, downloader: Callable[[str, Path], None] | None) -> list[str]:
+def _stage_missing(root: Path, model_id: str, revision: str, *, allow_download: bool, downloader: Callable[[str, Path], None] | None, repo_type: str = "model") -> list[str]:
     manifest = _read_manifest(root, model_id, revision)
     missing = [entry["path"] for entry in manifest["files"] if not (root / entry["path"]).is_file()]
     if not missing:
         return []
     if not allow_download:
         raise FileNotFoundError(f"snapshot at {root} is missing {missing}; pass allow_download=True to fetch them at {revision}")
-    fetch = downloader or _hub_download(model_id, revision)
+    fetch = downloader or _hub_download(model_id, revision, repo_type)
     for relative_path in missing:
         fetch(relative_path, root)
     return missing
@@ -179,11 +325,11 @@ def stage_missing_files(
     allow_download: bool = False,
     downloader: Callable[[str, Path], None] | None = None,
 ) -> list[str]:
-    """Fetch CountGD manifest-listed files that are absent locally (a fresh clone commits the manifest and the
-    small files but git-ignores the weights). Returns the relative paths fetched; :func:`verify_snapshot` still
-    runs after."""
+    """Fetch CountGD manifest-listed files that are absent locally from the authors' Space at the pinned revision
+    (a fresh clone commits the manifest and the Space README but git-ignores the checkpoint). Returns the relative
+    paths fetched; :func:`verify_snapshot` still runs after."""
     root = Path(path) if path is not None else DEFAULT_WEIGHTS_DIR
-    return _stage_missing(root, MODEL_ID, MODEL_REVISION, allow_download=allow_download, downloader=downloader)
+    return _stage_missing(root, MODEL_ID, MODEL_REVISION, allow_download=allow_download, downloader=downloader, repo_type=MODEL_REPO_TYPE)
 
 
 def stage_missing_tokenizer_files(
@@ -202,13 +348,14 @@ def resolve_weights_path(
     weights_path: str | Path | None = None,
     cache_dir: str | Path | None = None,
 ) -> tuple[Path, str]:
-    """Resolve the CountGD weights path with precedence:
+    """Resolve the CountGD weights directory with precedence:
 
     1. Explicit argument `weights_path` -> 'explicit_path'
     2. Environment variable `COUNTGD_WEIGHTS_DIR` -> 'env_var'
     3. Source checkout convention `weights/countgd` -> 'repo_offline'
-       (only if pyproject.toml exists at repo root and weights/ contains model.safetensors)
-    4. Hugging Face Hub snapshot download -> 'hf_hub'
+       (only if pyproject.toml exists at repo root and the directory holds the converted file or the source)
+    4. The pinned source checkpoint downloaded from the authors' Space into `<cache_dir>/countgd` -> 'hf_hub'
+       (the caller converts it; nothing but the manifest-listed checkpoint is fetched)
     """
     if weights_path is not None:
         return Path(weights_path), "explicit_path"
@@ -218,17 +365,14 @@ def resolve_weights_path(
     repo_root = Path(__file__).resolve().parents[2]
     if (repo_root / "pyproject.toml").is_file():
         repo_weights = repo_root / "weights" / DEFAULT_MODEL_KEY
-        if (repo_weights / MODEL_FILENAME).is_file():
+        if (repo_weights / MODEL_FILENAME).is_file() or (repo_weights / SOURCE_CKPT_NAME).is_file():
             return repo_weights, "repo_offline"
-    hub_path = Path(
-        snapshot_download(
-            repo_id=MODEL_ID,
-            revision=MODEL_REVISION,
-            allow_patterns=list(ALLOWED_CHECKPOINT_FILES),
-            cache_dir=str(cache_dir) if cache_dir is not None else None,
-        )
-    )
-    return hub_path, "hf_hub"
+    target = Path(cache_dir) if cache_dir is not None else DEFAULT_CACHE_DIR
+    target = target / DEFAULT_MODEL_KEY
+    target.mkdir(parents=True, exist_ok=True)
+    if not (target / MODEL_FILENAME).is_file() and not (target / SOURCE_CKPT_NAME).is_file():
+        _hub_download(MODEL_ID, MODEL_REVISION, MODEL_REPO_TYPE)(SOURCE_CKPT_NAME, target)
+    return target, "hf_hub"
 
 
 def resolve_tokenizer_path(tokenizer_path: str | Path | None = None, cache_dir: str | Path | None = None) -> tuple[Path, str]:
@@ -266,16 +410,20 @@ def model_args() -> SimpleNamespace:
 
 
 def load_state_dict(weight_path: str | Path) -> dict[str, torch.Tensor]:
-    """Read the safetensors file and restore the shared box-head aliases its metadata records (safetensors
-    stores a tied tensor once; `dec_pred_bbox_embed_share=True` ties the six decoder box heads and the encoder's)."""
+    """Read the converted safetensors file and restore the tied box-head aliases recorded in its one metadata
+    entry (safetensors stores a shared tensor once; `dec_pred_bbox_embed_share=True` ties the six decoder box
+    heads and the encoder's)."""
     tensors: dict[str, torch.Tensor] = {}
     with safe_open(str(weight_path), "pt") as handle:
         metadata = handle.metadata() or {}
         for key in handle.keys():
             tensors[key] = handle.get_tensor(key)
-    for alias, canonical in metadata.items():
+    if set(metadata) != {ALIAS_METADATA_KEY}:
+        raise RuntimeError(f"{Path(weight_path).name}: expected exactly the metadata entry {ALIAS_METADATA_KEY!r}, found {sorted(metadata)}")
+    aliases = json.loads(metadata[ALIAS_METADATA_KEY])
+    for alias, canonical in aliases.items():
         if canonical not in tensors:
-            raise RuntimeError(f"safetensors metadata aliases {alias} to a missing tensor {canonical}")
+            raise RuntimeError(f"alias {alias} names a missing tensor {canonical}")
         tensors[alias] = tensors[canonical]
     return tensors
 
@@ -295,11 +443,18 @@ def load_components(
     cache_dir: str | Path | None = None,
     weights_path: str | Path | None = None,
     tokenizer_path: str | Path | None = None,
+    manifest_verified: bool = False,
     return_metadata: bool = False,
 ) -> tuple[Any, Any, Any, torch.device, Path] | tuple[Any, Any, Any, torch.device, Path, dict[str, Any]]:
-    """Acquire, verify, and load the one supported CountGD checkpoint into the vendored network, strict=True."""
+    """Acquire, convert when needed, verify, and load the one supported CountGD checkpoint into the vendored
+    network, strict=True. Each file is hashed once: the served file here (`ensure_converted`), the source by the
+    caller's :func:`verify_snapshot` when it passes `manifest_verified=True` (or by the conversion itself)."""
     candidate_path, source = resolve_weights_path(weights_path=weights_path, cache_dir=cache_dir)
-    verified, manifest_verified = verify_checkpoint(candidate_path, require_configs=True, return_manifest_verified=True)
+    verified = Path(candidate_path)
+    if not verified.is_dir():
+        raise RuntimeError(f"Checkpoint directory does not exist: {verified}")
+    _refuse_unsafe(verified, allowed=(SOURCE_CKPT_NAME,))
+    conversion = ensure_converted(verified)
     tokenizer_dir, tokenizer_source = resolve_tokenizer_path(tokenizer_path=tokenizer_path, cache_dir=cache_dir)
     for name in ("config.json", "vocab.txt", "tokenizer_config.json"):
         if not (tokenizer_dir / name).is_file():
@@ -316,8 +471,9 @@ def load_components(
         "tokenizer_path": tokenizer_dir,
         "tokenizer_source": tokenizer_source,
         "manifest_verified": manifest_verified,
-        "weight_sha256": _sha256(weight_file),
-        "weight_size_bytes": weight_file.stat().st_size,
+        "converted_this_run": conversion["converted_this_run"],
+        "weight_sha256": conversion["sha256"],
+        "weight_size_bytes": conversion["bytes"],
         "device": str(target_device),
     }
     if return_metadata:

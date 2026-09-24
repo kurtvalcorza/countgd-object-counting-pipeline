@@ -1,111 +1,143 @@
-# ViT-MAE Base Pre-training Pipeline
+# CountGD Open-World Object Counting Pipeline
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/vit-mae-pretraining-pipeline/blob/main/tutorials/vit_mae_pretraining_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/countgd-object-counting-pipeline/blob/main/tutorials/countgd_object_counting_colab.ipynb)
 
-DIMER-oriented inference and bounded continuation wrapper for **one immutable open-weight ViT-MAE checkpoint** — the ViT-B/16 masked autoencoder of He, Chen, Xie, Li, Dollár and Girshick's *Masked Autoencoders Are Scalable Vision Learners* (CVPR 2022), pre-trained on ImageNet-1K for 1,600 epochs and served through `transformers.ViTMAEForPreTraining` (encoder **and** decoder). The model has **no user-facing task output**: it reconstructs the pixels of randomly hidden patches and returns its own loss, and its encoder is a backbone for downstream fine-tuning. This repository reads it two ways — the **masked-patch MSE** of its reconstructions and the **accuracy of a linear probe** on its mean-pooled patch tokens — and exposes a bounded continuation of the pre-training objective on a photograph set:
+DIMER-oriented inference and bounded fine-tuning wrapper for **one immutable open-weight CountGD checkpoint** — the
+multi-modal open-world counter of Amini-Naieni, Han and Zisserman, *CountGD: Multi-Modal Open-World Counting*
+(NeurIPS 2024). Given an image and a **text prompt**, up to three **exemplar boxes**, or both, it returns a count
+with one box and one point per counted object. The network is GroundingDINO (Swin-B image backbone, BERT text
+encoder, feature enhancer, six-layer decoder with 900 queries) with the exemplars entered as extra prompt
+tokens, carried here as vendored PyTorch code with the multi-scale deformable attention in pure PyTorch, so no
+compiled CUDA extension is needed on CPU or GPU.
 
-- model: `facebook/vit-mae-base`
-- pinned revision: `25b184bea5538bf5c4c852c79d221195fdd2778d`
-- weight file: `model.safetensors`
-- expected SHA-256: `479dcef4bd5df06259399027b789f21e9d9a1b79f37155a64176d55bc26fdae8`
-- expected size: `447,670,680` bytes
-- upstream model license: Apache-2.0
+- model: the authors' Hugging Face Space `nikigoli/countgd`
+- pinned revision: `6e82e59569a84ee5c6aafa35d396f2d2bee57be2`
+- source checkpoint: `checkpoint_best_regular.pth`, 1,250,122,522 bytes, SHA-256 `c1bab864b17db345b4c6e3aaabb5765bc2c0a90d0bc8defb5e664a74a50aa126` (byte-identical to the Google Drive file the upstream README links)
+- served weight file: `countgd.safetensors`, 937,560,480 bytes, SHA-256 `8e44867b951e3a4205d918e022b78bc5fea218fd17c1851b864a01c421d2d443` (converted once from the audited pickle)
+- upstream code: `niki-amini-naieni/CountGD` at `b6f362b3f5cd20db4a171faa410dfed8f2f466d8`
+- upstream model license: MIT
 
-The wrapper code in this repository is MIT licensed. The model weights retain Meta's Apache-2.0 license.
+The wrapper code in this repository is MIT licensed. The weights retain the authors' MIT licence; the vendored
+GroundingDINO code carries IDEA's Apache-2.0 header.
 
 ## Status
 
-**Release-grade.** The inference contract, the adaptation contract and the real pinned checkpoint have been exercised on the build workstation's CPU (the unit and model-backed suites, the default tutorial path through the package API and the generated notebook itself) and — for the `E2E` standalone tutorial at blob `06bc11b5` — in a clean Kaggle Tesla T4 runtime on 2026-09-21 (recorded in `docs/release-verification.md`). A later notebook revision returns to Candidate until a clean-runtime execution of that exact blob is recorded. Production HTTP serving / DIMER worker packaging remains a separate serving-readiness milestone.
+**Release-grade.** The inference, evaluation and adaptation contracts and the real pinned checkpoint have been
+exercised on the build workstation's CPU (the unit and model-backed suites, and the tutorial notebook in a fresh
+kernel) and — for the `E2E` tutorial at blob `c619a762` — in a clean Kaggle Tesla T4 runtime on 2026-09-24
+(recorded in `docs/release-verification.md`). A later notebook revision returns to Candidate until a clean-runtime
+execution of that exact blob is recorded. Production HTTP serving and DIMER worker packaging remain a separate
+serving-readiness milestone.
 
 ## Capabilities
 
 ```python
-from vit_mae_pipeline import load_pipeline
+from countgd_pipeline import CountGDPipeline, synthetic_scene
 
-pipe = load_pipeline()
-
-result = pipe.reconstruct("photo.jpg", seed=0)            # hides a seeded 75 % of the 196 patches
+pipe = CountGDPipeline.from_pretrained()          # fetch → audit → convert → verify → load (CUDA when visible)
+scene = synthetic_scene(1)                        # 35 blue circles among 16 green triangles
+result = pipe.count(scene["image"], text="blue circle", exemplars=scene["exemplars"])
 entry = result["results"][0]
-entry["masked_mse"], entry["visible_mse"], entry["hidden_patches"]   # the model's own loss on the hidden patches
-entry["reconstruction"].save("reconstruction.png")       # decoder output composited over the visible patches
-result["model_loss"]                                     # == the mean masked MSE: the checkpoint's objective
-
-features = pipe.embed(["a.jpg", "b.jpg"])["embeddings"]  # (2, 768) mean of the patch tokens, nothing hidden, L2-normalised
+entry["count"], entry["boxes"][:2], entry["points"][:2], entry["max_score"]
 ```
 
-Public inference operations:
-
-- `reconstruct(images, *, mask_ratio=0.75, seed=0, return_images=True)`
-- `embed(images)`
-- `validate_inputs(images, *, mask_ratio, names)` — the input manifest, raising exactly what the operations raise
-- `evaluation_report(result, *, sample_kind)` — the per-call reading of a `reconstruct` result
+- `count(images, text=None, exemplars=None, threshold=0.23)` — one result per image: `count`, `boxes`
+  (`[x0, y0, x1, y1]` in input pixels, best first), `points` (box centres), `scores`, `max_score` over the 900
+  queries, and the prompt as validated. Text alone, exemplars alone, or both, as upstream allows.
+- `evaluate(records)` — counts every record with its own label and exemplars and reports the count error (MAE,
+  RMSE, NAE, exact fraction, per class), point localisation (one-to-one matching of predicted to gold points
+  within half the mean exemplar side) and, where gold object boxes exist, box IoU matching (precision, recall
+  and F1 at IoU ≥ 0.5, mean matched IoU, mean best IoU per gold box).
+- `validate_inputs(...)` — the checks `count` applies, returned as an input manifest.
+- `mean_count_baseline`, `template_matching_baseline` — two non-neural baselines scored by the same code.
+- `synthetic_scene(seed)`, `build_synthetic_dataset()` — seeded counting scenes with known object boxes.
+- `fetch_corpus()`, `read_corpus()`, `build_sample_dataset()` — 80 digest-pinned FSC-147 test photographs.
 
 ## Adaptation contract
 
 ```python
-from vit_mae_pipeline import (
-    ViTMAEPipeline, build_sample_dataset, fetch_corpus, load_byod_dataset, read_corpus, split_dataset,
-)
+from countgd_pipeline import CountGDPipeline, build_synthetic_dataset
 
-splits = build_sample_dataset(read_corpus(fetch_corpus()), seed=42)   # 360 CC0 iNaturalist bird photographs, 216 / 48 / 96
-# or: splits = split_dataset(load_byod_dataset("my_photos.zip"), seed=42)  # labels.csv: id, file, label
-
-pipe = ViTMAEPipeline.from_pretrained(weights_dir="weights/vit-mae-base")   # CUDA when visible
-frozen = pipe.evaluate_reconstruction(splits["test"], seed=0)      # masked_mse, psnr_masked, per_image, baselines (two fills)
-pipe.fit_probe(splits["train"])                                    # linear probe on standardised encoder features
-probe = pipe.evaluate(splits["test"])                              # accuracy, macro_f1, per_class, knn
-result = pipe.adapt(splits["train"], splits["validation"], epochs=5, lr=1e-5, trainable_blocks=2)   # labels unused
-adapted = pipe.evaluate_reconstruction(splits["test"], seed=0)
-pipe.fit_probe(splits["train"]); pipe.evaluate(splits["test"])    # the probe is re-fitted on the adapted features
-pipe.save_artifact("outputs/adapter")                             # adapter.safetensors (+ probe head) + manifest.json
-again = ViTMAEPipeline.from_artifact("outputs/adapter", weights_dir="weights/vit-mae-base")
+splits = build_synthetic_dataset()                # 24 / 8 / 12 scenes with gold boxes
+# or: splits = split_dataset(load_byod_dataset("my_images.zip"), seed=42)  # labels.csv: id, file, label, count[, points, exemplars, boxes]
+pipe = CountGDPipeline.from_pretrained()
+report = pipe.adapt(splits["train"], splits["validation"], epochs=4, lr=2e-4)
+pipe.save_artifact("outputs/adapter")
+reloaded = CountGDPipeline.from_artifact("outputs/adapter")
 ```
 
-- `validate_dataset(records, *, require_labels=True)` checks `{id, image, label}` records structurally (decodable image with sides in 16..4096 px, label of at most 64 plain characters, 8..20,000 records over 2..100 labels, unique ids) and returns a manifest with a dataset digest; the reconstruction contract accepts unlabelled records (`require_labels=False`). `split_dataset` is a seeded, stratified, pixel-digest-deduplicated split; `check_split_disjoint` asserts no image is shared.
-- `evaluate_reconstruction(records, *, mask_ratio=0.75, seed=0)` hides one seeded mask per record (the seed is derived from the record id) and returns the mean and median **masked MSE** in the processor's normalised pixel space, the visible-patch MSE, the **PSNR** of the hidden patches, the per-image rows, and the same metrics for two non-neural fills scored on the same masks — the **mean-patch fill** and the **blur fill** (`metrics.py`).
-- `fit_probe(train, *, steps=300, lr=0.01, weight_decay=1e-3, seed=0)` embeds the training set with nothing hidden, standardises the features with the training set's mean and standard deviation (the paper's affine-free BatchNorm) and fits a multinomial logistic-regression head by full-batch Adam; `evaluate(records, *, k=5)` returns accuracy, macro F1, per-class precision / recall / F1, `predictions`, a **k-NN** vote on the same features, `verdict` (`measured` / `small-sample`) and `adapted`; `classify(images)` returns the probe's softmax scores. `majority_baseline` and `colour_neighbour_baseline` are the two further non-neural references the tutorial scores beside the probe.
-- `adapt(train, val=None, *, epochs=5, lr=1e-5, batch_size=8, trainable_blocks=2, mask_ratio=0.75, seed=0, progress=None)` continues masked autoencoding on the checkpoint's own loss — a fresh seeded random mask every step — training the whole decoder, the last `trainable_blocks` encoder blocks and the encoder's final LayerNorm (40,286,464 of 111,907,840 parameters by default); AdamW with weight decay 0.05, gradient clipping at 1.0, seeded shuffling and masks, no scheduler, **no labels**. Epoch 0 records the frozen model's validation reconstruction; the epoch with the lowest validation masked MSE is kept, so the selector can return the frozen model itself and never returns a worse one (the final epoch without validation). The update is transactional: an exception restores the frozen weights. The fitted probe is discarded, because its features no longer exist.
-- `save_artifact(dir)` writes the trained tensors — and the probe head with its standardisation statistics when a probe is fitted — as `adapter.safetensors` plus a `manifest.json` (format `org.valcorza.vit-mae-base.adapter.v1`: base id, revision and weight digest, objective, mask ratio and trainable blocks, the probe record, tensor names, file size and SHA-256, training configuration, epoch history); `from_artifact(dir)` re-verifies the base snapshot, checks the manifest, the digest and the exact tensor set before deserialising, refuses any tensor outside the declared blocks, and overlays the tensors onto a freshly loaded base (a reloaded probe classifies but carries no training features, so `evaluate()["knn"]` is `None`).
+`adapt` trains the last `trainable_layers` decoder layers (two by default), the decoder's final LayerNorm and the
+shared box head — 3,619,584 of 233,362,816 parameters — on upstream's objective: the token sigmoid focal loss and
+the L1 box loss after Hungarian matching, over the final and every intermediate decoder output. Records with
+`boxes` train on their gold object boxes; records with points only train on upstream's 2 × 2-pixel boxes centred
+on the points. One image per step, AdamW (weight decay 1e-4), gradient clipping at 0.1, seeded order. Epoch 0
+scores the frozen model on the validation set; the epoch with the lowest validation MAE is kept, which can be the
+frozen model itself. Any failure restores the base tensors. `save_artifact` writes the trained tensors as
+`adapter.safetensors` with a manifest (format, base model id, revision and weight digest, tensor names, file
+digest, configuration, history); `load_artifact` / `from_artifact` verify the manifest, the digest and the exact
+tensor set before deserialising.
 
 ## Live tutorial
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/vit-mae-pretraining-pipeline/blob/main/tutorials/vit_mae_pretraining_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/countgd-object-counting-pipeline/blob/main/tutorials/countgd_object_counting_colab.ipynb)
 
-`tutorials/vit_mae_pretraining_colab.ipynb` is declared `E2E` under DIMER Notebook Specification 2.0 and is **standalone** (§4): generated by `tools/build_notebook.py`, it carries the package's six modules, the model identity (`facebook/vit-mae-base` at the immutable revision `25b184bea5538bf5c4c852c79d221195fdd2778d`), the 4-file manifest digests and the runtime pins, so the exported notebook runs without this repository (parity enforced by `tests/test_notebook_parity.py` and `tools/validate_release_assets.py`). It stages and digest-verifies the snapshot, fetches 360 digest-pinned CC0 iNaturalist photographs of six bird species and splits them per species without leakage, masks and reconstructs the three deterministic sample shapes through the inference contract with an input manifest and a rejection probe, measures the frozen model's masked-patch MSE on the 96 held-out photographs beside the mean-patch and blur fills and its linear-probe accuracy beside the majority floor, a colour nearest neighbour and a k-NN, runs a bounded continuation of the masked-autoencoding objective with validation-MSE epoch selection, reconstructs and probes the held-out split again, re-reconstructs the shapes, exports the adapter with the probe head and reloads it with verified parity, and writes:
+`tutorials/countgd_object_counting_colab.ipynb` is declared `E2E` under DIMER Notebook Specification 2.0 and is
+**standalone** (§4): generated by `tools/build_notebook.py`, it carries the package's eight modules, the model
+identity, both snapshot manifests and the runtime pins, so the exported notebook runs without this repository
+(parity enforced by `tests/test_notebook_parity.py` and `tools/validate_release_assets.py`). It stages and
+digest-verifies the snapshots, audits and converts the pickle checkpoint in the kernel, draws the synthetic
+scenes and fetches the FSC-147 photographs, counts the demo scene by text, by exemplars and by both, scores the
+frozen model beside the mean-count baseline and the template matcher on the held-out scenes and photographs, runs
+the bounded fine-tune with validation-MAE epoch selection, scores both held-out sets again, re-counts the demo
+scene, exports the adapter and reloads it with verified parity, and writes:
 
-- `vit_mae_pretraining_train.csv`
-- `vit_mae_pretraining_input_manifest.json`
-- `vit_mae_pretraining_evaluation_report.json`
-- `vit_mae_pretraining_shapes.json` (+ the frozen and adapted reconstructions of the three shapes as PNG)
-- `vit_mae_pretraining_adapter/` (`adapter.safetensors`, `manifest.json`)
-- `vit_mae_pretraining_result.json`
+- `countgd_object_counting_train.csv`
+- `countgd_object_counting_input_manifest.json`
+- `countgd_object_counting_demo.json` (+ the frozen and adapted counts of the demo scene drawn as PNG, one per prompt mode)
+- `countgd_object_counting_evaluation_report.json`
+- `countgd_object_counting_adapter/` (`adapter.safetensors`, `manifest.json`)
+- `countgd_object_counting_result.json`
 - `provenance.json`
 
-The default path runs on CPU and uses CUDA automatically when present (about four minutes of model time on the build workstation's CPU after the downloads — 159.1 s of it the 5 continuation epochs — longer on a 2-vCPU hosted runtime; a hosted T4 finishes in a few minutes). The metrics it prints are one seeded split of one 360-photograph sample — evidence that the adaptation contract works, not a benchmark or production-fitness evidence. The build record's own finding is that continued pre-training on 216 in-domain photographs barely moves a converged checkpoint (held-out masked MSE 0.2281 → 0.2280; a learning rate of `1e-4` hurts from the first epoch), which is why the tutorial's assertion is on the selector — the kept epoch is never worse than the frozen model — rather than on a gain. The `main` integration workflow executes the notebook's code cells on the frozen CPU reference environment as a pre-flight; see `tutorials/README.md` for the registry and `docs/release-verification.md` for the release gate.
+The build record (CPU, `docs/release-verification.md`): on the 12 held-out synthetic scenes the frozen model
+counts with MAE 7.42 and box F1 0.453, and the fine-tuned one with MAE
+0.92 and box F1 0.550; on the 24 FSC-147 photographs MAE 4.54 →
+3.50. These are one seeded draw of synthetic scenes and 24 photographs — evidence that the
+contracts work, not a benchmark or production-fitness evidence. See `tutorials/README.md` for the registry.
 
 ## Release status
 
-**Release-grade** — the `E2E` notebook blob `06bc11b5` (committed at `eb708a9`) executed top-to-bottom in a clean Kaggle Tesla T4 runtime on 2026-09-21 (14/14 ok (1 restart after install cell), 366.8 s); the record is in `docs/release-verification.md` and `STATUS.md`. Static and unit checks — including the standalone generator parity checks — are necessary but were never the evidence; the hosted run is. A later change to the carried modules or the notebook returns the status to Candidate until re-verified.
+**Release-grade** — the `E2E` notebook blob `c619a762` (committed at `8d61b94`) executed top-to-bottom in a clean
+Kaggle Tesla T4 runtime on 2026-09-24 (16/16 code cells ok, one restart after the install cell, 468.7 s); the record
+is in `docs/release-verification.md` and `STATUS.md`. On the GPU the fine-tune kept epoch 2 rather than epoch 3
+(synthetic test MAE 7.42 → 1.58; FSC-147 4.54 → 3.54), because CUDA kernels are not bit-deterministic. Static and unit checks — including the standalone generator
+parity checks — are necessary but are not the evidence. A later change to the carried modules or the notebook
+yields a new blob that returns the status to Candidate until its own clean run is recorded.
 
-## Loss semantics
+## Score semantics
 
-The pipeline's `masked_mse` is the checkpoint's own training objective: the mean squared error between the decoder's prediction and the true pixels over the patches hidden from the encoder, computed in the processor's normalised pixel space (ImageNet mean / std, `norm_pix_loss` off in this checkpoint). `reconstruct()["model_loss"]` is the value `ViTMAEForPreTraining` returns and equals the mean of the per-image `masked_mse` rows. It is **not calibrated** and **not a perceptual judgement**: lower is better, a raw number means nothing without the fills and the frozen model beside it, and the decoder's prediction on the visible patches (`visible_mse`) is reported because the model predicts those too but was never trained on them. `psnr_masked` converts the same error to decibels in 0..1 pixel space for readers who think in PSNR.
-
-## Embeddings and the probe
-
-`embed()` returns the mean of the encoder's 196 patch tokens after its final LayerNorm with **nothing hidden** (mask ratio 0 for that call), L2-normalised, 768-wide. The CLS token is not used: the MAE encoder was never trained to summarise into it. The linear probe standardises those features with the training set's statistics before the head, which is what makes a linear readout of MAE features usable; MAE features are known to probe poorly before fine-tuning, and the probe is a **readout of representation quality**, not a classifier to ship.
+A query's score is the sigmoid of its best similarity to the prompt tokens (the text's word pieces and the
+exemplar tokens). It is **not calibrated** and **not a probability**: the count is the number of queries whose
+score exceeds a fixed threshold, 0.23 by default (upstream's). Lowering the threshold counts more, raising it
+fewer; no threshold is tuned to your images. The predicted boxes are object-sized — upstream fine-tuned on
+FSC-147 with 2 × 2-pixel boxes at the annotated points, but the GroundingDINO initialisation still yields boxes
+that enclose the counted objects — and are scored by IoU where gold object boxes exist and read as points
+otherwise.
 
 ## Machine-readable provenance
 
 ```python
-from vit_mae_pipeline import build_provenance, load_pipeline, write_provenance
+from countgd_pipeline import CountGDPipeline, build_provenance, write_provenance
 
-pipe = load_pipeline()
+pipe = CountGDPipeline.from_pretrained()
 record = build_provenance(pipeline=pipe)
 write_provenance("outputs/provenance.json", pipeline=pipe)
 ```
 
-The record includes model ID, immutable revision, weight filename/SHA-256/size, verified checkpoint source and path, the processor contract (224×224, 16×16 patches, ImageNet normalisation), the reconstruction and embedding semantics, the adapter record when one is loaded, Python version, platform, and runtime package versions.
+The record includes the model id, repository type and immutable revision, the served weight file with its
+SHA-256 and size, the source checkpoint's SHA-256 and pickle-audit digest, the verified checkpoint source and
+path, the image and tokenizer contract, the counting and score semantics, the adapter record when one is
+loaded, Python version, platform, and runtime package versions.
 
 ## Input safety
 
@@ -115,21 +147,40 @@ Image inputs may be:
 - `bytes` containing an image;
 - a `PIL.Image.Image`.
 
-Remote `http://` and `https://` image strings are rejected intentionally. The pipeline does not act as a network fetcher. Images with a side outside 16..4096 px are rejected before any tensor work; a call takes at most 64 images.
+Remote `http://` and `https://` image strings are rejected intentionally; the pipeline does not act as a network
+fetcher. Images with a side outside 32..4096 px are rejected before any tensor work, a call takes at most 16
+images, a text prompt is at most 64 plain characters, and at most three exemplar boxes are accepted, each inside
+the image and at least 2 px on a side.
 
 ## Supply-chain controls
 
-`load_pipeline()`:
+`CountGDPipeline.from_pretrained()`:
 
-1. resolves offline weights through `weights_path`, `VIT_MAE_WEIGHTS_DIR`, dev repo `weights/vit-mae-base`, or pinned Hugging Face revision fallback;
-2. verifies snapshot files against `dimer-base-manifest.json` when present (checking hashes and sizes of configurations and weights);
-3. rejects unsafe serialized formats (`.bin`, `.pt`, `.pth`, `.ckpt`, `.pkl`, `.pickle`, `.h5`, `.msgpack`);
-4. verifies the exact safetensors byte size and SHA-256 before model load;
-5. loads the verified local snapshot with `trust_remote_code=False`, `use_safetensors=True`, and `local_files_only=True`.
+1. resolves the weights directory through `weights_dir` / `weights_path`, `COUNTGD_WEIGHTS_DIR`, the checkout's
+   `weights/countgd`, or the pinned checkpoint downloaded from the Space into a cache directory;
+2. verifies the snapshot against `dimer-base-manifest.json` and the package's pinned source digest (the
+   constants win over an edited manifest);
+3. refuses any unsafe serialized file (`.bin`, `.pt`, `.pth`, `.ckpt`, `.pkl`, `.pickle`, `.h5`, `.msgpack`) other
+   than the audited source checkpoint;
+4. when `countgd.safetensors` is absent, audits the pickle statically (five allowed globals, pinned audit
+   digest), opens it once with torch's restricted unpickler and writes the converted file;
+5. verifies the converted file's exact byte size and SHA-256 — a converted file that fails is refused, not
+   regenerated — and loads it into the vendored network with `strict=True`.
+
+The tokenizer snapshot (`google-bert/bert-base-uncased` at `86b5e0934494bd15c9632b12f734a8a67f723594`) is
+verified against its own manifest; BERT's weights come from the CountGD checkpoint. No `trust_remote_code`, no
+Hub-hosted code. Details: `docs/WEIGHTS.md`.
+
+```bash
+python scripts/fetch_weights.py                  # stage, verify, convert
+python scripts/fetch_weights.py --verify-only    # re-verify source and converted file
+python scripts/fetch_weights.py --zip countgd-dimer.zip   # DIMER upload archive: the converted file only
+```
 
 ## Reproducible reference environment
 
-Python 3.12 is the supported runtime. The repository keeps exact direct pins in `pyproject.toml` and a fully version-pinned Linux/CPU reference graph in `requirements.lock.txt`.
+Python 3.12 is the supported runtime. The repository keeps exact direct pins in `pyproject.toml` and a fully
+version-pinned Linux/CPU reference graph in `requirements.lock.txt`.
 
 ```bash
 python -m pip install -r requirements.lock.txt
@@ -137,38 +188,45 @@ python -m pip install --no-deps --no-build-isolation -e .
 python scripts/check_lock.py
 ```
 
-`requirements.lock.txt` records the exact dependency versions proven by the real-checkpoint `main` CI path, including the official CPU PyTorch wheel. It is a version lock, not a cryptographic hash lock.
+`requirements.lock.txt` records the exact dependency versions of the CPU reference environment, including the
+official CPU PyTorch wheel. It is a version lock, not a cryptographic hash lock.
 
 ## Tests
 
 ```bash
-ruff check .
+ruff check src tests tools scripts
 pytest -m "not integration"
 ```
 
-`tests/test_model_backed.py` (reconstruction on the real checkpoint / probe and k-NN / one-epoch continuation and artifact round trip / loader scope / transactional restore, and the same path on CUDA where visible; the build ran it CPU-only) runs only when the snapshot is staged under `weights/vit-mae-base/`; the photograph cache `weights/inat-birds/` is git-ignored and filled by `fetch_corpus()`.
+`tests/test_model_backed.py` (the three prompt modes on the demo scene, box-scored evaluation, a one-epoch
+fine-tune with an artifact round trip, the no-validation rule, the artifact tensor-set refusal and the
+transactional restore, all on the CPU; a CUDA variant runs only with `COUNTGD_TEST_CUDA=1`) runs only when
+`weights/countgd/countgd.safetensors` has been produced by `scripts/fetch_weights.py`. The FSC-147 cache
+`weights/fsc147-subset/` is git-ignored and filled by `fetch_corpus()`.
 
 Real-checkpoint integration:
 
 ```bash
 RUN_INTEGRATION=1 pytest -m integration -q
-python tools/run_notebook.py tutorials/vit_mae_pretraining_colab.ipynb
+DIMER_NOTEBOOK_CI_PREINSTALLED=1 python tools/run_notebook.py tutorials/countgd_object_counting_colab.ipynb
 ```
 
 ## Scope boundaries
 
 This repository does **not** claim to provide:
 
-- image classification as a product (the probe is a readout, not a classifier to ship);
-- object detection, segmentation or image generation;
-- inpainting of user-chosen regions (the mask is random, as in pre-training);
-- full fine-tuning of the encoder for a downstream task, or pre-training from scratch;
-- normalised-pixel targets (`norm_pix_loss` is off in this checkpoint);
-- any adaptation beyond the decoder, the encoder's last blocks and its final LayerNorm;
+- object detection or segmentation as a product (the boxes are a reading of what was counted);
+- counting by density map, in video, or with tracking;
+- the upstream test-time cropping for images with more objects than one 800-pixel pass resolves, or the
+  upstream SAM-based test-time normalisation;
+- calibrated confidence;
+- fine-tuning beyond the last decoder layers, the decoder norm and the shared box head, or training from scratch;
+- evaluation on the full FSC-147 benchmark (the tutorial scores 24 of its test photographs);
 - production HTTP serving or DIMER worker packaging.
-
-Those require separate downstream heads, models, or serving work.
 
 ## AI Assistance Disclosure
 
-This repository’s code and accompanying documentation were developed with generative AI assistance for code development and technical writing under maintainer direction. The maintainer remains responsible for reviewing the implementation, validating results, and making release decisions. AI assistance does not constitute independent verification, provider endorsement, or release approval.
+This repository’s code and accompanying documentation were developed with generative AI assistance for code
+development and technical writing under maintainer direction. The maintainer remains responsible for reviewing
+the implementation, validating results, and making release decisions. AI assistance does not constitute
+independent verification, provider endorsement, or release approval.
