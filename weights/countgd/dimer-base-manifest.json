@@ -1,0 +1,25 @@
+{
+  "format": "dimer_hf_snapshot",
+  "formatVersion": 1,
+  "modelKey": "countgd",
+  "modelId": "nikigoli/CountGD",
+  "revision": "6b989ad11db9413e44863ea5c57735cae6cacff8",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1049,
+      "sha256": "d5f5ea964e50fd725450bd5e3cde29524dd1f062b8538070acb13b67ff1d334e"
+    },
+    {
+      "path": "config.json",
+      "bytes": 512,
+      "sha256": "c227a240c5f20f04d162c09e51446882e88e54d75dcdbf200ac8a54677e18fe8"
+    },
+    {
+      "path": "model.safetensors",
+      "bytes": 937560192,
+      "sha256": "7e3baed25e5299034301b00c2647fb23503dd306c468259114a4957198424e4c"
+    }
+  ],
+  "totalBytes": 937561753
+}
