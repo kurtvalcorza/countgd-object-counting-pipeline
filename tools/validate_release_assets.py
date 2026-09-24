@@ -1,4 +1,4 @@
-"""Static release-asset validation for the ViT-MAE Base pre-training (E2E) DIMER pipeline.
+"""Static release-asset validation for the CountGD open-world object counting (E2E) DIMER pipeline.
 
 Checks the STANDALONE tutorial notebook (DIMER Notebook Specification 2.0 ยง4), the tutorial
 registry, model card, README, STATUS.md and weight documentation for source conformance and
@@ -7,7 +7,8 @@ cross-document identity consistency, and runs the generator parity checks (PAR1โ
 This is source validation only. A PASS here is NOT clean-runtime execution evidence;
 the release gate is defined in docs/release-verification.md.
 """
-# ruff: noqa: E501  -- rule messages name the file and requirement in full; they are kept on one line
+# ruff: noqa: E501  -- marker strings are copied verbatim from the notebook and kept on one line
+
 from __future__ import annotations
 
 import ast
@@ -20,106 +21,106 @@ import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = "vit_mae_pipeline"
-REPO_NAME = "vit-mae-pretraining-pipeline"
-NOTEBOOK_NAME = "vit_mae_pretraining_colab.ipynb"
+PACKAGE = "countgd_pipeline"
+REPO_NAME = "countgd-object-counting-pipeline"
+NOTEBOOK_NAME = "countgd_object_counting_colab.ipynb"
 EXPECTED_PROFILE = "E2E"
-EXPECTED_MODEL_ID = "facebook/vit-mae-base"
-PIPELINE_CLASS = "ViTMAEPipeline"
+EXPECTED_MODEL_ID = "nikigoli/countgd"
+# The pinned host is a Hugging Face Space, so the reference link is the Space URL, not the model-repo URL.
+MODEL_URL = f"https://huggingface.co/spaces/{EXPECTED_MODEL_ID}"
+PIPELINE_CLASS = "CountGDPipeline"
 # INF1: the exact load expression the model cell must use. The pipeline picks CUDA when it is
-# visible (the continuation stage is where that matters); CPU is the documented fallback.
-MODEL_LOAD_EXPR = f"{PIPELINE_CLASS}.from_pretrained(weights_dir=WEIGHTS_DIR)"
-# Additional 40-hex revisions a document may legitimately cite (none by default).
-KNOWN_SHAS: frozenset[str] = frozenset(())
+# visible (the fine-tune is where that matters); CPU is the documented fallback.
+MODEL_LOAD_EXPR = f"{PIPELINE_CLASS}.from_pretrained(weights_dir=WEIGHTS_DIR, tokenizer_dir=TOKENIZER_WEIGHTS_DIR)"
+# Additional 40-hex revisions a document may legitimately cite: the upstream code commit, the tokenizer
+# snapshot, the FSC-147 mirror and the authors' own safetensors export the conversion was checked against.
+KNOWN_SHAS: frozenset[str] = frozenset(
+    (
+        "b6f362b3f5cd20db4a171faa410dfed8f2f466d8",
+        "86b5e0934494bd15c9632b12f734a8a67f723594",
+        "3e420cb6537e803dd6d4516623ce82a79c0317b8",
+        "6b989ad11db9413e44863ea5c57735cae6cacff8",
+    )
+)
 # Colab form gates that must default to the non-interactive sample path.
 BYOD_GATES = ("USE_BYOD",)
 # Machine-readable artifacts the notebook must write (OUT1-OUT3, OUT8, DAT24, EVAL21).
 EXPECTED_OUTPUTS = (
-    "outputs/vit_mae_pretraining_train.csv",
-    "outputs/vit_mae_pretraining_input_manifest.json",
-    "outputs/vit_mae_pretraining_evaluation_report.json",
-    "outputs/vit_mae_pretraining_shapes.json",
-    "outputs/vit_mae_pretraining_adapter",
-    "outputs/vit_mae_pretraining_result.json",
+    "outputs/countgd_object_counting_train.csv",
+    "outputs/countgd_object_counting_input_manifest.json",
+    "outputs/countgd_object_counting_evaluation_report.json",
+    "outputs/countgd_object_counting_demo.json",
+    "outputs/countgd_object_counting_adapter",
+    "outputs/countgd_object_counting_result.json",
     "outputs/provenance.json",
 )
 # Profile-specific code the notebook must exercise through the carried package's public API.
 CODE_MARKERS = (
-    "corpus_files = fetch_corpus(cache_dir='weights/inat-birds')",
+    "splits = build_synthetic_dataset(SYNTHETIC_SPLIT)",
+    "corpus_files = fetch_corpus(cache_dir='weights/fsc147-subset')",
     "corpus = read_corpus(corpus_files)",
-    "splits = build_sample_dataset(corpus, seed=SPLIT_SEED)",
+    "fsc_splits = build_sample_dataset(corpus, seed=SPLIT_SEED)",
+    "fsc_manifest = validate_dataset(fsc_splits['test'])",
     "records = load_byod_dataset(byod_zip)",
     "splits = split_dataset(records, seed=SPLIT_SEED)",
     "dataset_manifests = {name: validate_dataset(part) for name, part in splits.items()}",
     "disjoint = check_split_disjoint(splits)",
-    "'observer_overlap': observer_overlap(splits)",
-    "classes = class_names(train_records)",
-    "write_dataset_csv(train_records, 'outputs/vit_mae_pretraining_train.csv')",
-    "'image over the side ceiling': [{**train_records[0], 'image': Image.new('RGB', (MAX_IMAGE_SIDE + 1, 8))}, *train_records[1:8]]",
-    "validate_dataset(probe)",
-    "print({'ceilings': {'DEFAULT_MASK_RATIO': DEFAULT_MASK_RATIO, 'NUM_PATCHES': NUM_PATCHES, 'MAX_IMAGE_SIDE': MAX_IMAGE_SIDE, 'MIN_IMAGE_SIDE': MIN_IMAGE_SIDE, 'MAX_BATCH': MAX_BATCH, 'MIN_RECORDS': MIN_RECORDS, 'MAX_RECORDS': MAX_RECORDS, 'MIN_CLASSES': MIN_CLASSES",
-    "SAMPLE_DIGESTS = {",
-    "raise ValueError(f'Synthetic sample digest mismatch for {name}",
-    "input_manifest = validate_inputs(shape_images, names=[p.name for p in shape_images])",
-    "validate_inputs('https://example.invalid/not-allowed.png')",
-    "scene = pipe.reconstruct(shape_images, seed=SCENE_SEED)",
-    "again = pipe.reconstruct(shape_images, seed=SCENE_SEED, return_images=False)",
-    "shape_embeddings = pipe.embed(shape_images)['embeddings']",
-    "'pipeline_mse_is_model_loss': abs(scene['model_loss'] - float(np.mean([e['masked_mse'] for e in scene['results']]))) < 1e-4",
-    "frozen_scene = evaluation_report(scene, sample_kind='synthetic')",
-    "frozen_rec = pipe.evaluate_reconstruction(test_records, seed=0)",
-    "assert frozen_rec['masked_mse'] < frozen_rec['baselines']['blur_fill']['masked_mse'] < frozen_rec['baselines']['mean_patch_fill']['masked_mse']",
-    "baseline_majority = majority_baseline(train_records, test_records, classes)",
-    "baseline_neighbour = colour_neighbour_baseline(train_records, test_records, classes)",
-    "frozen_probe_fit = pipe.fit_probe(train_records)",
-    "frozen_probe = pipe.evaluate(test_records)",
-    "assert frozen_probe['accuracy'] > baseline_majority['accuracy']",
-    "adapt_result = pipe.adapt(train_records, val_records, epochs=EPOCHS, lr=LEARNING_RATE, batch_size=BATCH_SIZE, trainable_blocks=TRAINABLE_BLOCKS, progress=report)",
+    "write_dataset_csv(train_records, 'outputs/countgd_object_counting_train.csv')",
+    "validate_dataset(probe, min_records=1)",
+    "demo = synthetic_scene(DEMO_SEED)",
+    "input_manifest = validate_inputs(demo['image'], text=demo['label'], exemplars=demo['exemplars'], names=[demo['id']])",
+    "validate_inputs('https://example.invalid/not-allowed.png', text='cells')",
+    "demo_frozen = {mode: pipe.count(demo['image'], **kwargs)['results'][0] for mode, kwargs in PROMPTS.items()}",
+    "demo_report = evaluation_report({'results': list(demo_frozen.values())}, [demo['count']] * 3, sample_kind='synthetic')",
+    "frozen_syn = pipe.evaluate(test_records)",
+    "frozen_fsc = pipe.evaluate(fsc_test) if fsc_test else None",
+    "baselines = {'synthetic': {'mean_count': mean_count_baseline(train_records, test_records), 'template_matching': template_matching_baseline(test_records)}}",
+    "adapt_result = pipe.adapt(train_records, val_records, epochs=EPOCHS, lr=LEARNING_RATE, trainable_layers=TRAINABLE_LAYERS, seed=0, progress=report)",
     "assert val_history[adapt_result['best_epoch']] <= val_history[0]",
-    "adapted_rec = pipe.evaluate_reconstruction(test_records, seed=0)",
-    "adapted_val_rec = pipe.evaluate_reconstruction(val_records, seed=0)",
-    "adapted_probe_fit = pipe.fit_probe(train_records)",
-    "adapted_probe = pipe.evaluate(test_records)",
-    "assert abs(adapted_val_rec['masked_mse'] - val_history[adapt_result['best_epoch']]) < 1e-4",
-    "assert adapted_rec['masked_mse'] < adapted_rec['baselines']['blur_fill']['masked_mse']",
-    "adapted_scene = pipe.reconstruct(shape_images, seed=SCENE_SEED)",
-    "adapted_scene_report = evaluation_report(adapted_scene, sample_kind='synthetic')",
-    "pipe.save_artifact(artifact_dir, metadata={'tutorial': 'vit_mae_pretraining', 'data_source': data_source})",
-    "reloaded = ViTMAEPipeline.from_artifact(artifact_dir, weights_dir=WEIGHTS_DIR, device=pipe.device)",
-    "assert parity['identical_reconstructions'] == parity['of'] and parity['identical_probe_decisions'] == parity['of'] and parity['max_abs_probe_score_difference'] < 1e-4",
+    "adapted_syn = pipe.evaluate(test_records)",
+    "adapted_val = pipe.evaluate(val_records)",
+    "assert abs(adapted_val['mae'] - val_history[adapt_result['best_epoch']]) < 1e-6",
+    "demo_adapted = {mode: pipe.count(demo['image'], **kwargs)['results'][0] for mode, kwargs in PROMPTS.items()}",
+    "pipe.save_artifact(artifact_dir, metadata={'tutorial': 'countgd_object_counting', 'data_source': data_source})",
+    "reloaded = CountGDPipeline.from_artifact(artifact_dir, weights_dir=WEIGHTS_DIR, tokenizer_dir=TOKENIZER_WEIGHTS_DIR, device=pipe.device)",
+    "assert parity['identical_counts'] == parity['of'] and parity['max_abs_box_difference'] < 0.05 and parity['max_abs_score_difference'] < 1e-4",
     "write_provenance('outputs/provenance.json', pipeline=pipe)",
     "'model_revision': MODEL_REVISION",
     "'model_license': MODEL_LICENSE",
-    "'weight_file': MODEL_FILENAME, 'weight_format': 'safetensors, digest-verified', 'weight_sha256': MODEL_SHA256",
+    "'weight_file': MODEL_FILENAME, 'weight_format': 'safetensors, converted once from the audited pickle, digest-verified', 'weight_sha256': MODEL_SHA256",
+    "'source_sha256': SOURCE_CKPT_SHA256, 'pickle_audit_sha256': PICKLE_AUDIT_SHA256",
     "'corpus': {'name': CORPUS_NAME, 'release': CORPUS_RELEASE, 'license': CORPUS_LICENSE, 'base_url': CORPUS_BASE_URL, 'bytes': CORPUS_BYTES, 'pinned_photographs': len(SAMPLE_RECORDS)",
     "transformers.__version__",
     "'device': str(pipe.device)",
 )
 # Profile-specific learner-facing statements.
 MARKDOWN_MARKERS = (
-    "**Capability:** masked-patch reconstruction (masked image modelling), mean-pooled encoder embeddings, a linear probe on those embeddings and bounded continuation of the masked-autoencoding objective",
-    "**Apache-2.0** licence",
-    "**no user-facing task output**",
-    "**masked-patch MSE**",
-    "**accuracy of a linear probe**",
-    "**continuation of the pre-training objective on a photograph set**",
-    "**CC0 1.0**",
-    "**non-neural fills**",
-    "**majority floor**",
-    "**colour nearest neighbour**",
-    "**k-NN on the same features**",
+    "**Capability:** open-world object counting from a text prompt, up to three exemplar boxes, or both",
+    "**MIT** licence",
+    "**text prompt**",
+    "**exemplar boxes**",
+    "**count, one box and one point per counted object**",
+    "**count error**",
+    "**point localisation**",
+    "**box IoU**",
+    "**synthetic counting scenes with known object boxes**",
+    "**bounded counting fine-tune**",
+    "**mean-count baseline**",
+    "**template matcher**",
     "`sample-sanity`",
     "**no dispersion estimate**",
     "**Snapshot note:**",
-    "image classification as a product",
-    "## 4. iNaturalist photographs and split",
-    "## 5. Mask and reconstruct through the inference contract",
-    "## 6. Baselines and the frozen model on the test photographs, two ways",
-    "## 7. Bounded continuation of the masked-autoencoding objective",
-    "## 8. Held-out evaluation, two ways",
-    "## 9. Re-reconstruct the drawn shapes, export the adapter and reload it",
-    "**Leakage:**",
-    "**The readout is not the product:**",
+    "audits it **statically**",
+    "object detection or segmentation as a product",
+    "## 4. Synthetic scenes, FSC-147 photographs and splits",
+    "## 5. Count one scene three ways through the inference contract",
+    "## 6. Baselines and the frozen model on held-out scenes and photographs",
+    "## 7. Bounded counting fine-tune",
+    "## 8. Held-out evaluation after the fine-tune",
+    "## 9. Re-count the demo scene, export the adapter and reload it",
+    "**Baselines first:**",
+    "**Watch the other set:**",
+    "**Dense images need cropping:**",
 )
 # Direct-library use that must stay inside the carried module cells (G2: the notebook calls the
 # pipeline API, it does not reimplement it). Checked on every code cell except the embedded ones
@@ -132,16 +133,15 @@ FORBIDDEN_OUTSIDE_MODULE = (
     "from transformers import",
     "import transformers.",
     "AutoModel",
-    "AutoProcessor",
-    "ViTMAEForPreTraining",
-    "AutoImageProcessor",
-    "patchify(",
-    "unpatchify(",
+    "AutoTokenizer",
+    "BertModel",
+    "build_groundingdino(",
+    "torch.load(",
+    "import pickle",
+    "pickletools",
     "torch.optim",
     ".backward(",
     "requires_grad",
-    "mask_ratio =",
-    "torch.softmax(",
     "from safetensors",
     "import safetensors",
     "urllib.request",
@@ -244,8 +244,15 @@ FORBIDDEN_PATTERNS = (
     ("mutable model reference (MOD14)", re.compile(r"revision\s*=\s*['\"](?:main|latest)['\"]")),
     ("trust_remote_code enabled", re.compile(r"trust_remote_code\s*[=:]\s*True")),
     (
+        # The carried model.py converts the pinned pickle once with torch's restricted unpickler
+        # (`weights_only=True`, after a static audit); any other load is refused.
         "unsafe deserialization",
-        re.compile(r"\bpickle\.load|\btorch\.load\s*\(|getattr\(\s*torch\s*,\s*['\"]load['\"]"),
+        re.compile(
+            r"\bpickle\.load"
+            r"|\btorch\.load\s*\((?![^)]*weights_only\s*=\s*True)"
+            r"|weights_only\s*=\s*False"
+            r"|getattr\(\s*torch\s*,\s*['\"]load['\"]"
+        ),
     ),
     ("archive extractall", re.compile(r"\.extractall\s*\(")),
     ("notebook magic or shell escape", re.compile(r"(?m)^\s*[%!]|get_ipython\(\)")),
@@ -342,12 +349,7 @@ def validate_model_card() -> None:
     front = text.split("---", 2)[1]
     for key in ("license:", "model_card_spec:", "base_model:"):
         _check(key in front, f"MODEL_CARD.md missing front-matter field: {key}")
-    # This card still carries the MODEL_CARD_SPEC 1.0 header (the 1.1 header block is another
-    # session's pass and must not be touched here); the notebook validator accepts either.
-    _check(
-        'model_card_spec: "1.1"' in front or 'model_card_spec: "1.0"' in front,
-        "MODEL_CARD.md model_card_spec must be 1.0 or 1.1",
-    )
+    _check('model_card_spec: "1.2"' in front, "MODEL_CARD.md model_card_spec must be 1.2")
     _check(f"base_model: {EXPECTED_MODEL_ID}" in front, "MODEL_CARD.md base_model must equal MODEL_ID")
     _check(not PLACEHOLDER.search(text), "MODEL_CARD.md contains placeholder/scaffolding text")
     _check(not UNSUPPORTED_CLAIMS.search(text), "MODEL_CARD.md makes an unsupported release/benchmark claim")
@@ -618,7 +620,7 @@ def _validate_notebook_content(
     missing_md = [marker for marker in COMMON_MARKDOWN_MARKERS + MARKDOWN_MARKERS if marker not in markdown]
     _check(not missing_md, f"{path.name}: missing learner-facing markers: {missing_md}")
     _check(f"**Profile:** `{EXPECTED_PROFILE}`" in markdown, f"{path.name}: markdown must state the profile")
-    _check(f"https://huggingface.co/{model_id}" in markdown, f"{path.name}: references must link {model_id}")
+    _check(MODEL_URL in markdown and model_id == EXPECTED_MODEL_ID, f"{path.name}: references must link {MODEL_URL}")
 
 
 def validate_notebooks() -> None:

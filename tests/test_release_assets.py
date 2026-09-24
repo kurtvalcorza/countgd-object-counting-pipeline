@@ -1,96 +1,56 @@
+# ruff: noqa: E501  -- assertions are kept on one line
 from __future__ import annotations
 
-import hashlib
-import importlib.util
 import json
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from PIL import Image
-
-from vit_mae_pipeline import (
+from countgd_pipeline import (
     MODEL_ID,
     MODEL_REVISION,
     MODEL_SHA256,
+    PICKLE_AUDIT_SHA256,
+    SOURCE_CKPT_SHA256,
     build_provenance,
     write_provenance,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SAMPLE_SPEC = ROOT / "examples" / "sample-data"
-
-
-def _load_generator():
-    path = SAMPLE_SPEC / "generate_samples.py"
-    spec = importlib.util.spec_from_file_location("vit_mae_sample_generator", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+NOTEBOOK = ROOT / "tutorials" / "countgd_object_counting_colab.ipynb"
 
 
 def test_lock_parity_script_passes() -> None:
     subprocess.run([sys.executable, "scripts/check_lock.py"], cwd=ROOT, check=True)
 
 
-def test_sample_generator_matches_manifest_and_pillow(tmp_path: Path) -> None:
-    expected = {}
-    for line in (SAMPLE_SPEC / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
-        digest, name = line.split("  ", 1)
-        expected[name] = digest
-
-    generator = _load_generator()
-    written = generator.generate(tmp_path)
-
-    assert {path.name for path in written} == set(expected)
-    for path in written:
-        assert hashlib.sha256(path.read_bytes()).hexdigest() == expected[path.name]
-        with Image.open(path) as image:
-            assert image.mode == "RGB"
-            assert image.size == (32, 32)
-
-
 def test_provenance_identity_and_semantics() -> None:
     record = build_provenance(include_runtime=False)
-    assert record["model"]["id"] == MODEL_ID
-    assert record["model"]["revision"] == MODEL_REVISION
-    assert record["model"]["weight_sha256"] == MODEL_SHA256
-    assert record["model"]["license"] == "Apache-2.0"
-    assert record["processor"]["patch_size"] == 16 and record["processor"]["num_patches"] == 196
-    assert record["inference"]["default_mask_ratio"] == 0.75
-    assert record["inference"]["embedding_dim"] == 768
-    assert record["adapter"] is None
+    model = record["model"]
+    assert (model["id"], model["repo_type"], model["revision"], model["license"]) == (MODEL_ID, "space", MODEL_REVISION, "MIT")
+    assert model["weight_sha256"] == MODEL_SHA256 and model["weight_file"] == "countgd.safetensors"
+    assert model["derived_from"]["sha256"] == SOURCE_CKPT_SHA256 and model["derived_from"]["pickle_audit_sha256"] == PICKLE_AUDIT_SHA256
+    assert record["inference"]["confidence_threshold"] == 0.23 and "grid_sample" in record["inference"]["deformable_attention"]
+    assert "object-sized" in record["inference"]["training_box"]
+    assert record["code"]["commit"] == "b6f362b3f5cd20db4a171faa410dfed8f2f466d8" and record["adapter"] is None
 
 
 def test_provenance_records_actual_pipeline_metadata(tmp_path: Path) -> None:
-    fake_pipeline = SimpleNamespace(
-        checkpoint_path=tmp_path / "custom_weights",
-        checkpoint_source="explicit_path",
-        manifest_verified=True,
-        weight_sha256="fake_sha256_digest",
-        weight_size_bytes=1234567,
-        device="cuda:0",
-    )
-
+    fake_pipeline = SimpleNamespace(checkpoint_path=tmp_path / "w", checkpoint_source="explicit_path", manifest_verified=True, weight_sha256="fake", weight_size_bytes=1234567, device="cuda:0")
     out_file = tmp_path / "provenance.json"
     write_provenance(out_file, pipeline=fake_pipeline)
     data = json.loads(out_file.read_text(encoding="utf-8"))
-
-    assert data["model"]["checkpoint_source"] == "explicit_path"
-    assert data["model"]["checkpoint_path"] == str(tmp_path / "custom_weights")
-    assert data["model"]["manifest_verified"] is True
-    assert data["model"]["weight_sha256"] == "fake_sha256_digest"
-    assert data["model"]["weight_size_bytes"] == 1234567
-    assert data["inference"]["device"] == "cuda:0"
+    assert (data["model"]["checkpoint_source"], data["model"]["manifest_verified"], data["model"]["weight_size_bytes"]) == ("explicit_path", True, 1234567)
+    assert data["model"]["checkpoint_path"] == str(tmp_path / "w") and data["inference"]["device"] == "cuda:0"
 
 
 def test_colab_notebook_is_json_and_python_cells_compile() -> None:
-    path = ROOT / "tutorials" / "vit_mae_pretraining_colab.ipynb"
-    notebook = json.loads(path.read_text(encoding="utf-8"))
+    notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
     code_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code"]
     assert code_cells
     for index, cell in enumerate(code_cells):
         source = "".join(cell.get("source", []))
-        compile(source, f"{path}#cell-{index}", "exec")
+        if source.lstrip().startswith(("%", "!")):
+            continue
+        compile(source, f"{NOTEBOOK}#cell-{index}", "exec")

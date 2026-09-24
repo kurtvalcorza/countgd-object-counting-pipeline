@@ -7,61 +7,52 @@ from __future__ import annotations
 import pytest
 from PIL import Image
 
-from test_pipeline import FakeModel, FakeProcessor
-from vit_mae_pipeline import (
-    DEFAULT_MASK_RATIO,
+from countgd_pipeline import (
+    CONFIDENCE_THRESHOLD,
+    DEMO_SEED,
     INPUT_SCHEMA,
     MODEL_ID,
     MODEL_REVISION,
-    NUM_PATCHES,
-    ViTMAEPipeline,
+    CountGDPipeline,
     evaluation_report,
+    synthetic_scene,
     validate_inputs,
 )
+from test_pipeline import FakeCriterion, FakeModel, FakeTokenizer, _image
 
 
-def _image(side: int = 64) -> Image.Image:
-    return Image.new("RGB", (side, side), (10, 120, 200))
-
-
-def _pipeline() -> ViTMAEPipeline:
-    return ViTMAEPipeline(FakeModel(), FakeProcessor(), device="cpu")
+def _pipeline(detections=None) -> CountGDPipeline:
+    return CountGDPipeline(FakeModel(detections), FakeCriterion(), FakeTokenizer(), device="cpu")
 
 
 def test_validate_inputs_returns_manifest_with_schema_and_identity() -> None:
-    manifest = validate_inputs([_image(), _image(40)], names=["a", "b"])
-    assert manifest["schema"] == INPUT_SCHEMA and manifest["verdict"] == "accepted" and manifest["findings"] == []
-    assert manifest["inputs"] == [{"id": "a", "mode": "RGB", "size": [64, 64]}, {"id": "b", "mode": "RGB", "size": [40, 40]}]
-    assert manifest["mask_ratio"] == DEFAULT_MASK_RATIO and manifest["hidden_patches"] == int(NUM_PATCHES * DEFAULT_MASK_RATIO)
-    assert manifest["model_id"] == MODEL_ID and manifest["model_revision"] == MODEL_REVISION
+    scene = synthetic_scene(DEMO_SEED)
+    manifest = validate_inputs([scene["image"], _image()], text=scene["label"], exemplars=[scene["exemplars"], None], names=["scene", "dots"])
+    assert manifest["schema"] == INPUT_SCHEMA and manifest["verdict"] == "accepted"
+    assert [i["id"] for i in manifest["inputs"]] == ["scene", "dots"] and manifest["inputs"][0]["exemplars"] == 3
+    assert manifest["model_id"] == MODEL_ID and manifest["model_revision"] == MODEL_REVISION and manifest["threshold"] == CONFIDENCE_THRESHOLD
 
 
 def test_validate_inputs_single_image_default_ids() -> None:
-    manifest = validate_inputs(_image(), mask_ratio=0.5)
-    assert [i["id"] for i in manifest["inputs"]] == ["image-0"] and manifest["hidden_patches"] == 98
+    manifest = validate_inputs(_image(), text="dot")
+    assert [i["id"] for i in manifest["inputs"]] == ["image-0"]
 
 
 def test_validate_inputs_rejects_like_the_core_methods() -> None:
     pipe = _pipeline()
-    for bad, message in (
-        ("https://example.invalid/x.png", "remote URLs"),
-        ([], "at least one image"),
-        (Image.new("RGB", (4, 4)), "sides must be"),
-    ):
+    for bad, message in (("https://example.invalid/x.png", "remote URLs"), ([], "at least one image"), (Image.new("RGB", (4, 4)), "sides must be")):
         with pytest.raises(ValueError, match=message):
-            validate_inputs(bad)
+            validate_inputs(bad, text="dot")
         with pytest.raises(ValueError, match=message):
-            pipe.reconstruct(bad)
-    with pytest.raises(ValueError, match="mask_ratio"):
-        validate_inputs(_image(), mask_ratio=0)
+            pipe.count(bad, text="dot")
+    with pytest.raises(ValueError, match="threshold"):
+        validate_inputs(_image(), text="dot", threshold=1.5)
 
 
-def test_evaluation_report_reads_a_reconstruct_result_as_sample_sanity() -> None:
-    result = _pipeline().reconstruct([_image(), _image(40)], seed=1)
-    report = evaluation_report(result, sample_kind="synthetic (drawn in a test)")
-    ids = [m["id"] for m in report["metrics"]]
-    assert ids == ["masked_mse", "masked_mse_visible", "mask_ratio"] and report["verdict"] == "sample-sanity"
-    assert report["n"] == 2 and report["model_id"] == MODEL_ID and "not a quality judgement" in report["note"]
-    assert abs(report["metrics"][0]["value"] - sum(r["masked_mse"] for r in result["results"]) / 2) < 1e-9
+def test_evaluation_report_reads_a_count_result_as_sample_sanity() -> None:
+    result = _pipeline([(0.5, 0.5), (0.2, 0.2)]).count([_image(), _image()], text="dot")
+    report = evaluation_report(result, [2, 3], sample_kind="synthetic (drawn in a test)")
+    assert report["verdict"] == "sample-sanity" and report["n"] == 2 and report["model_id"] == MODEL_ID
+    assert [m["id"] for m in report["metrics"]] == ["count", "mae", "exact"] and report["metrics"][1]["value"] == 0.5
     with pytest.raises(ValueError, match="no results"):
         evaluation_report({"results": []})

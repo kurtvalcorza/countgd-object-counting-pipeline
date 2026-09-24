@@ -1,6 +1,6 @@
 """Corpus-level measures for open-world counting, in numpy / torch: the count errors FSC-147 is scored on
 (MAE, RMSE, and the normalised absolute error), a point-based localisation reading of the predicted boxes,
-and two non-neural baselines scored by the same code — the mean training count and a normalised
+a box-extent reading (IoU matching) where gold object boxes exist, and two non-neural baselines scored by the same code — the mean training count and a normalised
 cross-correlation template matcher built from the exemplar boxes."""
 # ruff: noqa: E501  -- fleet metrics module written at the 110-column fleet width; this repo lints at 100
 
@@ -31,6 +31,7 @@ LOCALISATION_DEFINITIONS = {
 }
 MIN_MATCH_RADIUS = 4.0
 DEFAULT_TEMPLATE_THRESHOLD = 0.6  # normalised cross-correlation peak the template matcher counts
+MIN_WINDOW_STD = 0.01  # grey levels in [0, 1]: an image window or template flatter than this has no defined correlation
 
 
 # ------------------------------------------------------------------------------------ counting
@@ -115,6 +116,81 @@ def localisation_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return {"n": len(scored), "tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall, "f1": f1, "definitions": dict(LOCALISATION_DEFINITIONS)}
 
 
+# ------------------------------------------------------------------------------------ box extents
+
+BOX_DEFINITIONS = {
+    "iou_threshold": "a predicted box is a true positive when its one-to-one Hungarian partner (maximising IoU) is a gold box with IoU >= this",
+    "precision": "fraction of predicted boxes matched to a gold box at IoU >= the threshold",
+    "recall": "fraction of gold boxes matched to a predicted box at IoU >= the threshold",
+    "f1": "harmonic mean of box precision and recall (micro-averaged over the scored images)",
+    "mean_matched_iou": "mean IoU of the true-positive pairs (how tight the boxes are that do match)",
+    "mean_best_iou": "mean over gold boxes of the highest IoU any predicted box reaches (0 for a gold box nothing overlaps)",
+}
+BOX_IOU_THRESHOLD = 0.5
+
+
+def box_iou_matrix(a: Sequence[Sequence[float]], b: Sequence[Sequence[float]]) -> np.ndarray:
+    """Pairwise IoU of `[x0, y0, x1, y1]` boxes, shape (len(a), len(b))."""
+    p = np.asarray(a, dtype=np.float64).reshape(-1, 4)
+    g = np.asarray(b, dtype=np.float64).reshape(-1, 4)
+    ix = np.clip(np.minimum(p[:, None, 2], g[None, :, 2]) - np.maximum(p[:, None, 0], g[None, :, 0]), 0, None)
+    iy = np.clip(np.minimum(p[:, None, 3], g[None, :, 3]) - np.maximum(p[:, None, 1], g[None, :, 1]), 0, None)
+    inter = ix * iy
+    area_p = (p[:, 2] - p[:, 0]) * (p[:, 3] - p[:, 1])
+    area_g = (g[:, 2] - g[:, 0]) * (g[:, 3] - g[:, 1])
+    union = area_p[:, None] + area_g[None, :] - inter
+    return np.where(union > 0, inter / np.where(union > 0, union, 1.0), 0.0)
+
+
+def match_boxes(predicted: Sequence[Sequence[float]], gold: Sequence[Sequence[float]], threshold: float = BOX_IOU_THRESHOLD) -> dict[str, Any]:
+    """One-to-one Hungarian matching of predicted to gold boxes by IoU: TP / FP / FN at `threshold`, the IoUs of
+    the true positives and each gold box's best IoU."""
+    if not 0.0 < threshold <= 1.0:
+        raise ValueError("threshold must be in (0, 1]")
+    if not predicted or not gold:
+        return {"tp": 0, "fp": len(predicted), "fn": len(gold), "matched_iou": [], "best_iou": [0.0] * len(gold)}
+    iou = box_iou_matrix(predicted, gold)
+    rows, cols = linear_sum_assignment(-iou)
+    hits = iou[rows, cols] >= threshold
+    tp = int(hits.sum())
+    return {
+        "tp": tp,
+        "fp": int(len(predicted) - tp),
+        "fn": int(len(gold) - tp),
+        "matched_iou": [float(v) for v in iou[rows, cols][hits]],
+        "best_iou": [float(v) for v in iou.max(axis=0)],
+    }
+
+
+def box_metrics(rows: Sequence[Mapping[str, Any] | None], threshold: float = BOX_IOU_THRESHOLD) -> dict[str, Any]:
+    """Micro-averaged box precision / recall / F1 at the IoU threshold, the mean IoU of the matched pairs and the
+    mean best IoU per gold box, over `match_boxes` rows (images without gold boxes are skipped)."""
+    scored = [r for r in rows if r is not None]
+    base = {"iou_threshold": threshold, "definitions": dict(BOX_DEFINITIONS)}
+    if not scored:
+        return {"n": 0, "precision": None, "recall": None, "f1": None, "mean_matched_iou": None, "mean_best_iou": None, **base}
+    tp = sum(int(r["tp"]) for r in scored)
+    fp = sum(int(r["fp"]) for r in scored)
+    fn = sum(int(r["fn"]) for r in scored)
+    matched = [v for r in scored for v in r["matched_iou"]]
+    best = [v for r in scored for v in r["best_iou"]]
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "n": len(scored),
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "mean_matched_iou": float(np.mean(matched)) if matched else None,
+        "mean_best_iou": float(np.mean(best)) if best else None,
+        **base,
+    }
+
+
 # ------------------------------------------------------------------------------------ baselines
 
 
@@ -136,20 +212,26 @@ def _grey(image: Image.Image) -> torch.Tensor:
 
 
 def _ncc_map(image: torch.Tensor, template: torch.Tensor) -> torch.Tensor:
-    """Normalised cross-correlation of a zero-mean, unit-norm template over the image (same-size output)."""
+    """Normalised cross-correlation of a zero-mean template over the image (same-size output, in [-1, 1]).
+
+    The correlation is undefined where the image window (or the template) is flat; those positions get 0
+    rather than a ratio of two near-zero numbers, which float error would turn into spurious peaks."""
     th, tw = template.shape
+    n = th * tw
     t = template - template.mean()
-    t_norm = torch.sqrt((t**2).sum()) + 1e-6
+    t_var = (t**2).sum()
+    if t_var <= (MIN_WINDOW_STD**2) * n:
+        return torch.zeros_like(image)
     pad = (tw // 2, tw - tw // 2 - 1, th // 2, th - th // 2 - 1)
     img = F.pad(image[None, None], pad, mode="reflect")
     ones = torch.ones(1, 1, th, tw)
     local_sum = F.conv2d(img, ones)
     local_sq = F.conv2d(img**2, ones)
-    n = th * tw
     local_var = (local_sq - local_sum**2 / n).clamp_min(0.0)
-    local_norm = torch.sqrt(local_var) + 1e-6
     corr = F.conv2d(img, t[None, None])
-    return (corr / (t_norm * local_norm))[0, 0]
+    valid = local_var > (MIN_WINDOW_STD**2) * n
+    ncc = torch.where(valid, corr / (torch.sqrt(t_var) * torch.sqrt(local_var.clamp_min(1e-12))), torch.zeros_like(corr))
+    return ncc.clamp(-1.0, 1.0)[0, 0]
 
 
 def template_match(record: Mapping[str, Any], *, threshold: float = DEFAULT_TEMPLATE_THRESHOLD) -> dict[str, Any]:
@@ -195,12 +277,17 @@ def template_matching_baseline(records: Sequence[Mapping[str, Any]], *, threshol
 
 
 __all__ = [
+    "BOX_DEFINITIONS",
+    "BOX_IOU_THRESHOLD",
     "DEFAULT_TEMPLATE_THRESHOLD",
     "LOCALISATION_DEFINITIONS",
     "METRIC_DEFINITIONS",
     "MIN_MATCH_RADIUS",
+    "box_iou_matrix",
+    "box_metrics",
     "counting_metrics",
     "localisation_metrics",
+    "match_boxes",
     "match_points",
     "match_radius",
     "mean_count_baseline",

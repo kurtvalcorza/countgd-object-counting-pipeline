@@ -45,8 +45,10 @@ from .config import (
     TARGET_BOX_PX,
 )
 from .metrics import (
+    box_metrics,
     counting_metrics,
     localisation_metrics,
+    match_boxes,
     match_points,
     match_radius,
 )
@@ -238,17 +240,19 @@ class CountGDPipeline:
         allow_download: bool = False,
     ) -> CountGDPipeline:
         """Load the one supported checkpoint (fleet snapshot directories → stage absent entries when allowed →
-        verify against the manifests and the pinned digests → load the safetensors file strictly)."""
+        verify against the manifests and the pinned digests → convert the audited pickle once when the served file
+        is absent → load the safetensors file strictly)."""
+        manifest_verified = False
         if weights_dir is not None:
             if weights_path is not None:
                 raise ValueError("pass either weights_dir or weights_path, not both")
             stage_missing_files(weights_dir, allow_download=allow_download)
             verify_snapshot(weights_dir)
-            weights_path = weights_dir
+            weights_path, manifest_verified = weights_dir, True
         if tokenizer_dir is not None:
             stage_missing_tokenizer_files(tokenizer_dir, allow_download=allow_download)
             verify_tokenizer_snapshot(tokenizer_dir)
-        model, criterion, tokenizer, target_device, _, metadata = load_components(device=device, cache_dir=cache_dir, weights_path=weights_path, tokenizer_path=tokenizer_dir, return_metadata=True)
+        model, criterion, tokenizer, target_device, _, metadata = load_components(device=device, cache_dir=cache_dir, weights_path=weights_path, tokenizer_path=tokenizer_dir, manifest_verified=manifest_verified, return_metadata=True)
         return cls(
             model,
             criterion,
@@ -319,7 +323,7 @@ class CountGDPipeline:
         threshold: float = CONFIDENCE_THRESHOLD,
     ) -> dict[str, Any]:
         """Count the objects a text prompt and/or 0..3 exemplar boxes describe: one result per image with the
-        count, the predicted points (box centres in the input image's pixels, best first), the tiny boxes and
+        count, the predicted points (box centres in the input image's pixels, best first), the predicted boxes and
         the scores. Text alone, exemplars alone, or both, as upstream allows."""
         manifest = validate_inputs(images, text=text, exemplars=exemplars, threshold=threshold)
         single = isinstance(images, str | Path | bytes | Image.Image)
@@ -356,14 +360,15 @@ class CountGDPipeline:
         progress: Callable[[int, int], None] | None = None,
     ) -> dict[str, Any]:
         """Count every record of a validated set with its own label and exemplars and score the counts (MAE,
-        RMSE, NAE, per class) and — where gold points exist — the localisation of the predicted points."""
+        RMSE, NAE, per class), the localisation of the predicted points where gold points exist and the extent of
+        the predicted boxes (IoU matching) where gold object boxes exist."""
         from .samples import validate_dataset
 
         if not use_text and not use_exemplars:
             raise ValueError("evaluate with text, exemplars, or both")
         checked = validate_dataset(records, min_records=1, max_records=MAX_EVAL_RECORDS)["records"]
         ratio = _check_threshold(threshold)
-        rows, loc_rows, per_image = [], [], []
+        rows, loc_rows, box_rows, per_image = [], [], [], []
         started = time.perf_counter()
         for i, record in enumerate(checked):
             exemplars = record["exemplars"] if use_exemplars else []
@@ -379,11 +384,16 @@ class CountGDPipeline:
             if "points" in record:
                 loc = match_points(entry["points"], record["points"], match_radius(record))
                 loc_rows.append(loc)
-            per_image.append({"id": record["id"], "label": record["label"], "gold": record["count"], "predicted": entry["count"], "max_score": entry["max_score"], "localisation": loc})
+            box = None
+            if "boxes" in record:
+                box = match_boxes(entry["boxes"], record["boxes"])
+                box_rows.append(box)
+            per_image.append({"id": record["id"], "label": record["label"], "gold": record["count"], "predicted": entry["count"], "max_score": entry["max_score"], "localisation": loc, "boxes": {k: box[k] for k in ("tp", "fp", "fn")} if box else None})
             if progress is not None:
                 progress(i + 1, len(checked))
         result = counting_metrics(rows)
         result["localisation"] = localisation_metrics(loc_rows)
+        result["boxes"] = box_metrics(box_rows)
         result["per_image"] = per_image
         result["threshold"] = ratio
         result["prompt"] = {"text": use_text, "exemplars": use_exemplars}
@@ -402,7 +412,13 @@ class CountGDPipeline:
         return names
 
     def _targets(self, record: Mapping[str, Any]) -> dict[str, Any]:
+        """Training boxes in normalised cx, cy, w, h: the gold object boxes when the record has them, else upstream's
+        2 x 2 px boxes centred on the gold points (FSC-147 annotates points only)."""
         w, h = record["image"].size
+        if record.get("boxes"):
+            b = torch.tensor(record["boxes"], dtype=torch.float32)
+            boxes = torch.stack([(b[:, 0] + b[:, 2]) / 2 / w, (b[:, 1] + b[:, 3]) / 2 / h, (b[:, 2] - b[:, 0]) / w, (b[:, 3] - b[:, 1]) / h], dim=1)
+            return {"boxes": boxes.to(self.device), "labels": torch.zeros(len(b), dtype=torch.long, device=self.device)}
         points = record.get("points")
         if not points:
             raise ValueError(f"{record['id']}: adaptation needs gold points (count alone cannot place the training boxes)")
@@ -426,7 +442,8 @@ class CountGDPipeline:
         Trains the last `trainable_layers` decoder layers, the decoder's final norm and the shared box head on
         upstream's own objective — the token-level sigmoid focal loss and the L1 box loss of `SetCriterion`
         after Hungarian matching, over the final and every intermediate decoder output — with the caption
-        `<label> .`, the record's exemplars and 2 x 2 px target boxes centred on the gold points, one image per
+        `<label> .`, the record's exemplars and, as target boxes, the record's gold object boxes when it has them
+        (the synthetic scenes) or upstream's 2 x 2 px boxes centred on the gold points (FSC-147), one image per
         step; AdamW at a fixed learning rate (weight decay 1e-4), gradient clipping at 0.1 (upstream's), seeded
         order, no scheduler, no augmentation. Epoch 0 records the frozen model's validation MAE; every epoch is
         scored on the validation set and the epoch with the lowest validation MAE is kept — the frozen model
@@ -458,7 +475,7 @@ class CountGDPipeline:
                 return None
             model.eval()
             result = self.evaluate(val_checked)
-            return {k: result[k] for k in ("mae", "rmse", "nae", "n")} | {"localisation_f1": result["localisation"]["f1"]}
+            return {k: result[k] for k in ("mae", "rmse", "nae", "n")} | {"localisation_f1": result["localisation"]["f1"], "box_f1": result["boxes"]["f1"]}
 
         def key(entry: dict[str, Any]) -> float:
             return -entry["val"]["mae"] if entry["val"] else -math.inf

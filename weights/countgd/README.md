@@ -1,43 +1,22 @@
 ---
-language:
-- en
-library_name: CountGD
-license: mit
-tags:
-- computer-vision
-- counting
-- grounding-dino
-- model_hub_mixin
-- multi-modal
-- open-vocabulary
-- pytorch_model_hub_mixin
-- transformers
+title: CountGD_Multi-Modal_Open-World_Counting
+sdk: docker
+app_port: 7860
 ---
+# CountGD: Multi Modal Open World Counting Model
 
-# CountGD
+To Run Locally, the best method is to use docker.
 
-A Multi-Modal Open-World Counting Model for counting objects in an image with text and image prompts. 
-For more details, please check out the following links
+Make sure you have installed docker, nvidia-driver and nvidia container toolkit for the your platform.
 
-- Project page: https://www.robots.ox.ac.uk/~vgg/research/countgd/
-- Code: https://github.com/niki-amini-naieni/CountGD
-- Demo: https://huggingface.co/spaces/nikigoli/countgd
-- Paper: https://arxiv.org/pdf/2407.04619
+Then, you can run the app locally with the following command
 
-![Sample prediction](https://www.robots.ox.ac.uk/~vgg/research/countgd/images/teaser-improved.png)
-
-## Architecture
-
-![CountGD Architecture](https://www.robots.ox.ac.uk/~vgg/research/countgd/images/architecture.png)
-
-
-## Citation
-
-```
-@inproceedings{AminiNaieni24,
-    author       = "Amini-Naieni, N. and Han, T. and Zisserman, A.",
-    title        = "CountGD: Multi-Modal Open-World Counting",
-    booktitle    = "NeurIPS",
-    year         = "2024",
-}
+```bash
+docker run -it \
+    --name countgd \
+    -p 7860:7860 \
+    --platform=linux/amd64 \
+    --gpus all \
+	registry.hf.space/nikigoli-countgd:latest \
+    python app.py
 ```
