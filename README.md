@@ -22,11 +22,12 @@ GroundingDINO code carries IDEA's Apache-2.0 header.
 
 ## Status
 
-**Candidate.** The inference, evaluation and adaptation contracts and the real pinned checkpoint have been
-exercised on the build workstation's CPU: the unit and model-backed suites, and the generated tutorial notebook
-top-to-bottom in a fresh kernel (recorded in `docs/release-verification.md`). The status becomes Release-grade
-only when a clean hosted runtime executes the exact committed notebook blob. Production HTTP serving and DIMER
-worker packaging remain a separate serving-readiness milestone.
+**Release-grade.** The inference, evaluation and adaptation contracts and the real pinned checkpoint have been
+exercised on the build workstation's CPU (the unit and model-backed suites, and the tutorial notebook in a fresh
+kernel) and — for the `E2E` tutorial at blob `c619a762` — in a clean Kaggle Tesla T4 runtime on 2026-09-24
+(recorded in `docs/release-verification.md`). A later notebook revision returns to Candidate until a clean-runtime
+execution of that exact blob is recorded. Production HTTP serving and DIMER worker packaging remain a separate
+serving-readiness milestone.
 
 ## Capabilities
 
@@ -106,11 +107,12 @@ contracts work, not a benchmark or production-fitness evidence. See `tutorials/R
 
 ## Release status
 
-**Candidate** — the notebook executed top-to-bottom in a fresh CPU kernel on the build workstation (recorded in
-`docs/release-verification.md` and `STATUS.md`); a clean hosted-runtime execution of the committed notebook blob
-is the release gate and has not yet been recorded. Static and unit checks — including the standalone generator
+**Release-grade** — the `E2E` notebook blob `c619a762` (committed at `8d61b94`) executed top-to-bottom in a clean
+Kaggle Tesla T4 runtime on 2026-09-24 (16/16 code cells ok, one restart after the install cell, 468.7 s); the record
+is in `docs/release-verification.md` and `STATUS.md`. On the GPU the fine-tune kept epoch 2 rather than epoch 3
+(synthetic test MAE 7.42 → 1.58; FSC-147 4.54 → 3.54), because CUDA kernels are not bit-deterministic. Static and unit checks — including the standalone generator
 parity checks — are necessary but are not the evidence. A later change to the carried modules or the notebook
-yields a new blob that needs its own clean run.
+yields a new blob that returns the status to Candidate until its own clean run is recorded.
 
 ## Score semantics
 

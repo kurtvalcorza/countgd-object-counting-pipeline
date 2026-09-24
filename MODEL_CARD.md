@@ -154,7 +154,7 @@ Recorded values, observed in the notebook run on the build workstation's CPU (on
 | 24 FSC-147 test photographs | frozen CountGD | 4.54 | 8.69 | 0.922 | — |
 | 24 FSC-147 test photographs | fine-tuned CountGD | 3.50 | 8.34 | 0.925 | — |
 
-The authors report FSC-147 test MAE and RMSE for the full test split in their paper; this repository does not reproduce that evaluation and makes no claim about it.
+The table is the CPU run. In the clean Kaggle T4 run of the same notebook the frozen and baseline values were the same except the FSC-147 frozen RMSE (8.72); the fine-tune kept epoch 2 instead of 3 and reached synthetic MAE 1.58, box F1 0.546 and FSC-147 MAE 3.54 (see Verification records). The authors report FSC-147 test MAE and RMSE for the full test split in their paper; this repository does not reproduce that evaluation and makes no claim about it.
 
 ###### Decision thresholds
 
@@ -274,11 +274,18 @@ reloaded = CountGDPipeline.from_artifact("outputs/adapter")
 ### Verification records
 
 - **Date:** 2026-09-24
-- **Subject:** `tutorials/countgd_object_counting_colab.ipynb` as generated from the package source (see `docs/release-verification.md` for the commit and blob)
+- **Subject:** `tutorials/countgd_object_counting_colab.ipynb` at commit `8d61b94`, Git blob `c619a762`
 - **Runtime:** CPU only, Python 3.12, `torch 2.14.0`, `transformers 4.57.6`
 - **Procedure:** fresh Jupyter kernel, all cells in order, the pinned dependencies already installed, the source checkpoint pre-staged; the notebook fetched the Space card, the tokenizer and the photographs, and converted the checkpoint itself
-- **Observed result:** @P:LOCAL_RECORD_RESULT@
+- **Observed result:** 0 errors in 1,281.8 s; the pinned converted digest reproduced in the kernel; the values in Performance Measures; demo scene 35 / 51 / 35 → 35 / 35 / 35 (text / exemplars / both); reload parity 4 / 4 identical counts
 - **Caveats:** a pre-flight on the build workstation, not a clean hosted runtime; one seeded draw, not an evaluation of FSC-147
+
+- **Date:** 2026-09-24
+- **Subject:** the same notebook, commit `8d61b94`, Git blob `c619a762`
+- **Runtime:** Kaggle Tesla T4, Python 3.12.13, `torch 2.14.0+cu130`, `transformers 4.57.6`, installed by the notebook from its own pins
+- **Procedure:** clean container with no repository checkout and empty caches, `Run all` in a fresh interpreter, all form fields at their defaults; the notebook fetched the checkpoint from the Space and converted it on the runtime
+- **Observed result:** 16 / 16 code cells ok, one interpreter restart after the install cell, 468.7 s; synthetic test MAE 7.417 → 1.583, box F1 0.453 → 0.546; FSC-147 MAE 4.542 → 3.542; kept epoch 2 (validation MAE 0.875); reload parity 4 / 4 identical counts
+- **Caveats:** the fine-tune's result differs from the CPU run because CUDA kernels are not bit-deterministic; one observation on one seeded draw
 
 ### Upstream References and Citations
 

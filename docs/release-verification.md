@@ -110,7 +110,7 @@ A known-failing default path in the supported runtime blocks release (REL11).
 
 | Notebook | Commit / notebook blob | Date (UTC) | Executor | Outcome |
 |---|---|---|---|---|
-| `countgd_object_counting_colab.ipynb` (`E2E`) | — | — | — | no clean hosted-runtime execution recorded yet |
+| `countgd_object_counting_colab.ipynb` (`E2E`) | `8d61b94` / `c619a762` | 2026-09-24 | Kaggle Tesla T4 (`kurtvalcorza/dimer-nb2-countgd-object-counting` v1; image `torch 2.10.0+cu128` before the pinned install, `torch 2.14.0+cu130` after; the notebook fetched by commit from GitHub and its Git blob verified before execution; no repository checkout; empty model, weights and photograph caches) | **PASSED** — 16/16 code cells ok (one interpreter restart after the install cell, as designed), 468.7 s |
 
 ## Recorded executions
 
@@ -118,7 +118,9 @@ Each row is one execution: what ran, where, and what was observed. Static checks
 
 | Date (UTC) | Subject | Runtime | Procedure | Observed result | Caveats |
 |---|---|---|---|---|---|
-@P:LOCAL_NOTEBOOK_ROW@
+| 2026-09-24 | `tutorials/countgd_object_counting_colab.ipynb` at `8d61b94`, blob `c619a762` | Kaggle Tesla T4 (15,360 MiB), Python 3.12.13, `torch 2.14.0+cu130`, `transformers 4.57.6`, `numpy 2.5.3`, pins installed by the notebook's own install cell | clean container, `Run all` in a fresh interpreter, all form fields at their defaults; the notebook staged the Space README and the 1,250,122,522-byte checkpoint, the tokenizer and the 80 photographs itself, and converted the checkpoint on the runtime | `countgd.safetensors` passed its pinned digest; demo scene 35 / 51 / 35 → 35 / 35 / 35 (text / exemplars / both); synthetic test MAE 7.417 → 1.583, RMSE 9.971 → 4.425, point F1 0.862 → 0.967, box F1 0.453 → 0.546; validation MAE 9.375 → 0.875, kept epoch 2; FSC-147 MAE 4.542 → 3.542, RMSE 8.720 → 8.468; baselines as on the CPU (mean count 10.000 / 16.208, template matcher 14.500 / 34.000); reload parity 4 / 4 identical counts, 0.0 box and score difference; adapter 14,485,144 bytes, 58 tensors; 101 files, 2,191 MB staged | the fine-tune's trajectory differs from the CPU runs (kept epoch 2, not 3) because CUDA kernels are not bit-deterministic; the frozen and baseline numbers match the CPU to the printed precision except the FSC-147 frozen RMSE (8.720 against 8.691); one observation, not an evaluation |
+| 2026-09-24 | the same blob `c619a762` | Build workstation CPU (`CUDA_VISIBLE_DEVICES=-1`), Python 3.12.10, `torch 2.14.0`, `transformers 4.57.6`; local harness, pins pre-installed | fresh Jupyter kernel, all cells in order, the source checkpoint pre-staged by a hard link, everything else staged by the notebook | 1,281.8 s, 0 errors; the values quoted in the notebook, README and card: synthetic test MAE 7.417 → 0.917, RMSE 9.971 → 3.175, point F1 0.862 → 0.981, box F1 0.453 → 0.550; validation MAE 9.375 → 0.750, kept epoch 3 (epoch 4: 2.750); FSC-147 MAE 4.542 → 3.500, RMSE 8.691 → 8.337; demo 35 / 51 / 35 → 35 / 35 / 35; reload parity 4 / 4 exact; adapter SHA-256 `58414f2e…` | a pre-flight, not promotion evidence; bit-identical to the earlier local run below in every reported value |
+| 2026-09-24 | the notebook generated before the template-matcher correction (blob `3efffd1e`, not committed) | Build workstation CPU, as above | as above | 1,210.9 s, 0 errors; model numbers as in the row above; the template matcher reported MAE 26,904.667 on the synthetic scenes and 623.750 on FSC-147 | this run exposed the flat-window defect in the template matcher's correlation, corrected before the committed blob; its baseline values are superseded |
 | 2026-09-24 | package API, not the notebook (the source that generated the first notebook) | Build workstation CPU (`CUDA_VISIBLE_DEVICES=-1`), Python 3.12, torch 2.14.0, transformers 4.57.6 | the pinned checkpoint downloaded from the Space and from Google Drive and hashed; the static audit; the restricted load; the conversion run in two separate processes; the tensor-by-tensor comparison with the authors' Hub export | both downloads 1,250,122,522 bytes with SHA-256 `c1bab864…`; five globals, audit digest `4606eaf3…`; `countgd.safetensors` 937,560,480 bytes with SHA-256 `8e44867b…` in both processes; 1,042 / 1,042 tensors and 66 / 66 aliases equal to the export, tensor data section byte-identical | the Google Drive copy was deleted after hashing; the export is a cross-check, not a pin |
 | 2026-09-24 | package API: the three prompt modes on scenes 0–15 | Build workstation CPU, as above | `count` with text, three exemplars, and both, at the default threshold | exemplars alone counted targets plus distractors on most scenes (scene 1: 35 gold, 16 distractors → 35 / 51 / 35); text and both exact on 7 of 16 scenes | one draw of synthetic scenes; not an evaluation |
 
@@ -138,5 +140,7 @@ Arm C's validation MAE turned upward at epoch 4, and the selector kept epoch 3. 
 
 ## Current status
 
-**Candidate.** The notebook has executed top-to-bottom on the build workstation's CPU (the local harness, a
-pre-flight). No clean hosted-runtime execution of the committed notebook blob is recorded yet.
+**Release-grade.** The committed notebook blob `c619a762` (at `8d61b94`, generated from `6ec56df`) executed
+top-to-bottom in a clean Kaggle Tesla T4 runtime on 2026-09-24 (16/16 code cells ok, 468.7 s). A later change to
+the carried modules or to the notebook yields a new blob that returns the status to Candidate until its own clean
+run is recorded.
