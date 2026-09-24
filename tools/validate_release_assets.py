@@ -405,20 +405,33 @@ EXTERNAL_WEIGHT_DIGESTS: dict[str, str] = {
     "4606eaf365d27d2fddd901bdc069218dabbd418f9856ed2d0e3707612ad4c527": "audit_pickle digest of sorted globals in checkpoint_best_regular.pth data.pkl",
     "8e44867b951e3a4205d918e022b78bc5fea218fd17c1851b864a01c421d2d443": "SHA-256 of converted countgd.safetensors (git-ignored)",
 }
-_DIGEST = re.compile(r"(?<![0-9a-fA-F])[0-9a-f]{64}(?![0-9a-fA-F])")
+_DIGEST = re.compile(r"(?<![0-9a-fA-F])[0-9a-f]{64}(?![0-9a-fA-F])", re.IGNORECASE)
 _GROUPED = r"(\d{1,3}(?:[,\u202f\u00a0 ]\d{3})+|\d+)"
-_BYTE_COUNT = re.compile(r"(?<![\d,\-])" + _GROUPED + r"\s*bytes\b|totalBytes`?\s*" + _GROUPED)
+_BYTE_COUNT = re.compile(
+    r"(?<![\d,\-])" + _GROUPED + r"\s*(?:bytes?\b|B\b)"
+    + r"|totalBytes[`\"]?\s*[:=]?\s*" + _GROUPED
+)
 
 
 def _manifest_facts(root: Path = ROOT) -> tuple[set[str], set[int]]:
     digests: set[str] = set()
     sizes: set[int] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                normalized_key = key.lower()
+                if normalized_key.endswith("sha256") and isinstance(nested, str) and _DIGEST.fullmatch(nested):
+                    digests.add(nested.lower())
+                if normalized_key.endswith("bytes") and isinstance(nested, int) and not isinstance(nested, bool):
+                    sizes.add(nested)
+                collect(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                collect(nested)
+
     for path in sorted(root.glob("weights/*/dimer-base-manifest.json")):
-        manifest = json.loads(_read(path))
-        sizes.add(manifest["totalBytes"])
-        for entry in manifest["files"]:
-            digests.add(entry["sha256"])
-            sizes.add(entry["bytes"])
+        collect(json.loads(_read(path)))
     return digests, sizes
 
 
@@ -433,7 +446,7 @@ def validate_weight_facts(root: Path = ROOT) -> None:
         if not path.exists():
             continue
         text = _read(path)
-        found_digests = set(_DIGEST.findall(text))
+        found_digests = {digest.lower() for digest in _DIGEST.findall(text)}
         found_sizes = {int(re.sub(r"[,\u202f\u00a0 ]", "", m.group(1) or m.group(2))) for m in _BYTE_COUNT.finditer(text)}
         cited_digests |= found_digests
         cited_sizes |= found_sizes

@@ -5,6 +5,7 @@ or that tools/validate_release_assets.py declares, with a label, in EXTERNAL_WEI
 from __future__ import annotations
 
 import importlib.util
+import json
 import shutil
 from pathlib import Path
 
@@ -47,6 +48,25 @@ def test_repository_weight_facts_match_manifests():
     validator.validate_weight_facts()
 
 
+def test_nested_manifest_facts_are_accepted(tmp_path):
+    root = _copy_docs(tmp_path)
+    manifest_path = next(root.glob("weights/*/dimer-base-manifest.json"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    audit_digest = "ef" * 32
+    manifest["files"].append(
+        {
+            "path": "nested-source.bin",
+            "bytes": 1,
+            "sha256": "cd" * 32,
+            "pickleAuditSha256": audit_digest,
+            "convertsTo": {"path": "nested.bin", "bytes": WRONG_SIZE, "sha256": WRONG_DIGEST},
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    _append(root, f"\n{WRONG_SIZE:,} bytes; SHA-256 `{WRONG_DIGEST}`; audit `{audit_digest}`\n")
+    validator.validate_weight_facts(root)
+
+
 def test_wrong_byte_count_is_rejected(tmp_path):
     assert WRONG_SIZE not in validator.EXTERNAL_WEIGHT_BYTES
     root = _copy_docs(tmp_path)
@@ -63,6 +83,14 @@ def test_wrong_digest_is_rejected(tmp_path):
         validator.validate_weight_facts(root)
 
 
+@pytest.mark.parametrize("wrong_digest", [WRONG_DIGEST.upper(), "aB" * 32])
+def test_wrong_digest_case_variants_are_rejected(tmp_path, wrong_digest):
+    root = _copy_docs(tmp_path)
+    _append(root, f"\nSHA-256: `{wrong_digest}`\n")
+    with pytest.raises(validator.ValidationError, match="SHA-256"):
+        validator.validate_weight_facts(root)
+
+
 def test_grouped_total_bytes_is_read_whole(tmp_path):
     root = _copy_docs(tmp_path)
     _append(root, "\n- stray manifest `totalBytes` 987,654,321,013\n")
@@ -73,5 +101,26 @@ def test_grouped_total_bytes_is_read_whole(tmp_path):
 def test_spaced_byte_count_is_read_whole(tmp_path):
     root = _copy_docs(tmp_path)
     _append(root, "\n- stray file (987 654 321 013 bytes)\n")
+    with pytest.raises(validator.ValidationError, match="987654321013"):
+        validator.validate_weight_facts(root)
+
+
+def test_abbreviated_byte_suffix_is_rejected(tmp_path):
+    root = _copy_docs(tmp_path)
+    _append(root, f"\n- stray file ({WRONG_SIZE:,} B)\n")
+    with pytest.raises(validator.ValidationError, match="987654321013"):
+        validator.validate_weight_facts(root)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        f'\n- stray manifest `"totalBytes": {WRONG_SIZE:,}`\n',
+        f"\n- stray manifest `totalBytes = {WRONG_SIZE:,}`\n",
+    ],
+)
+def test_total_bytes_separators_are_rejected(tmp_path, text):
+    root = _copy_docs(tmp_path)
+    _append(root, text)
     with pytest.raises(validator.ValidationError, match="987654321013"):
         validator.validate_weight_facts(root)
