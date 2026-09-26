@@ -144,3 +144,19 @@ Arm C's validation MAE turned upward at epoch 4, and the selector kept epoch 3. 
 top-to-bottom in a clean Kaggle Tesla T4 runtime on 2026-09-24 (16/16 code cells ok, 468.7 s). A later change to
 the carried modules or to the notebook yields a new blob that returns the status to Candidate until its own clean
 run is recorded.
+
+## Supplemental open-vocabulary detection and counting workshop — `tutorials/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb`
+
+This entry applies only to the supplemental workshop notebook, not the primary tutorial executions above.
+
+### Maintainer-supplied successful Colab run — 2026-09-26
+
+The maintainer supplied the [executed notebook](execution-evidence/2026-09-26/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb) and authorized merging PR #3 (merge commit `24496d5`). The file is archived byte-for-byte, SHA-256 `d7cb37ee744ca2ef6f17e1a3854eb2514ec5d776592afeb2bfa1991cf1dccd79`. All 31 code cells have execution counts, 65 saved outputs and zero saved errors. Code-cell sources match commit `2519e0453274c9e1b1565bbb2639d022102d899b`, tutorial blob `6323cbdfac4f437126964e26f5baa1dbcd5d0286`, apart from Colab-inserted `# @title` lines. Later commits on `main` that touch the notebook (`b6b8b11` (AI Use Disclosure)) change only markdown cells; its code cells are identical to the executed revision. This evidence commit does not change tutorial code.
+
+Scope: STANDARD tier: synthetic counting scenes split 24 train / 8 validation / 12 test, CountGD with text, exemplar and text+exemplar prompts, and Grounding DINO Tiny and OWLv2 Base/16 as detector counters. FULL and BYOD were not exercised.
+
+Saved runtime: Python 3.13.15, torch 2.14.0+cu130, torchvision 0.29.0+cu130, Transformers 4.57.6, CUDA Tesla T4. Execution reaches the final completion summary. The separate exported files were not supplied, so their bytes/digests were not independently inspected. Saved counts run sequentially from 1 to 31; runtime freshness and absence of manual restarts/reruns are not independently established by the artifact.
+
+Results (sample-sanity measures on the built-in data, not general model rankings): Detector count thresholds selected on validation: Grounding DINO 0.1 (validation MAE 0.75) and OWLv2 0.3 (validation MAE 0.125); CountGD text+exemplar MAE 6.67 on the three unseen demonstration scenes. The report bundle and completion summary were produced; the notebook itself labels all built-in results synthetic sample-sanity evidence.
+
+Status remains **Candidate**. Merge approval and this successful default-path run do not close the optional-path (FULL/BYOD) or REL12 qualification gates, and `metadata.dimer.clean_runtime_evidence` in the notebook stays `pending` as authored (editing it would change the verified blob).
