@@ -27,6 +27,10 @@ jobs:
               (root / ".tmp/workshop-notebook.b64.part1").read_text()
               + (root / ".tmp/workshop-notebook.b64.part2").read_text()
           )
+          # Repair the single duplicated staging character, then prove the exact file by SHA-256.
+          if payload.count("LRSSSrHll7") != 1:
+              raise SystemExit("unexpected staged payload shape")
+          payload = payload.replace("LRSSSrHll7", "LRSSrHll7", 1)
           data = gzip.decompress(base64.b64decode(payload))
           expected_sha = "66b2dee92c9c12f1dd7731d9c71e158f6778b9f581549bb836bf1413d5f575ab"
           actual_sha = hashlib.sha256(data).hexdigest()
