@@ -1,0 +1,49 @@
+name: Materialize workshop notebook
+
+on:
+  push:
+    branches:
+      - feat/open-vocabulary-detection-counting-workshop
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/open-vocabulary-detection-counting-workshop
+      - name: Materialize exact uploaded notebook
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib
+          root = Path(".")
+          payload = (
+              (root / ".tmp/workshop-notebook.b64.part1").read_text()
+              + (root / ".tmp/workshop-notebook.b64.part2").read_text()
+          )
+          data = gzip.decompress(base64.b64decode(payload))
+          expected_sha = "66b2dee92c9c12f1dd7731d9c71e158f6778b9f581549bb836bf1413d5f575ab"
+          actual_sha = hashlib.sha256(data).hexdigest()
+          if actual_sha != expected_sha:
+              raise SystemExit(f"SHA mismatch: {actual_sha}")
+          if len(data) != 99716:
+              raise SystemExit(f"size mismatch: {len(data)}")
+          out = root / "tutorials/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb"
+          out.write_bytes(data)
+          print(out, len(data), actual_sha)
+          PY
+      - name: Commit materialized notebook
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tutorials/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb
+          git rm .tmp/workshop-notebook.b64.part1 .tmp/workshop-notebook.b64.part2
+          git commit -m "feat: add open-vocabulary detection and counting workshop notebook"
+          git push
