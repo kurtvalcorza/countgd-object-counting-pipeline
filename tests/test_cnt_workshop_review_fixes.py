@@ -102,7 +102,16 @@ def test_no_cell_downloads_source_at_run_time():
         assert "raw.githubusercontent.com/kurtvalcorza" not in text, cell[
             "id"
         ]  # no DIMER source by URL
-        if not cell["id"].startswith(
+        if cell["id"] == "ef509873":  # section 2 fetches only the pinned, hash-checked uv wheel
+            urls = re.findall(r"https://[^\s\"']+", text)
+            assert urls and all(
+                u.startswith(("https://files.pythonhosted.org/", "https://pypi.org/simple"))
+                for u in urls
+            )
+            assert "UV_SHA256" in text
+        elif cell["id"] == "cnt-uv-carrier":  # the hash lock names the urllib3 package
+            assert "urlopen" not in text and "import urllib" not in text
+        elif not cell["id"].startswith(
             "carried-"
         ):  # carried samples.py modules fetch public sample data only
             assert "urlopen" not in text and "urllib" not in text, cell["id"]
@@ -349,6 +358,25 @@ def test_byod_disabled_touches_no_model(byod):
     assert byod["byod_report"] is None and out.getvalue().startswith(
         "BYOD disabled (USE_BYOD=False)"
     )
+
+
+@pytest.mark.parametrize(
+    ("files", "message"),
+    [(None, "this runtime has no upload dialog"), (2, r"upload exactly one \.zip \(got 2 files\)")],
+)
+def test_byod_upload_asks_the_kernel_and_refuses_a_bad_upload(byod, files, message):
+    calls = []
+    byod.update(
+        {
+            "USE_BYOD": True,
+            "BYOD_ZIP_PATH": "",
+            "host_upload": lambda path: calls.append(path) or {"files": files},
+        }
+    )
+    with pytest.raises(byod["BYODError"], match=message):
+        run(byod, "cnt-byod-run")
+    assert calls == [byod["WORK_ROOT"] / "byod_upload.zip"]
+    assert "google.colab" not in source("cnt-byod-run")
 
 
 class StandInDetector:
