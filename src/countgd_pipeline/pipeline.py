@@ -65,6 +65,7 @@ ImageInput = str | Path | bytes | Image.Image
 
 MAX_BATCH = 16  # images per count() call (each is one forward pass; the batch is a convenience, not a tensor batch)
 DEFAULT_TRAINABLE_LAYERS = 2  # the last two of the six decoder layers train beside the shared box head
+BOX_HEAD_PREFIXES = ("transformer.decoder.bbox_embed.0.", "bbox_embed.0.")  # the shared box head, under either registered name
 EXEMPLAR_CARRIER_WORD = "object"  # the caption word the exemplar tokens are attached to when no text is given
 PARAMETER_COUNT = 233_362_816
 MAX_EVAL_RECORDS = 5_000
@@ -408,7 +409,10 @@ class CountGDPipeline:
         if isinstance(trainable_layers, bool) or not isinstance(trainable_layers, int) or not 0 <= trainable_layers <= DECODER_LAYERS:
             raise ValueError(f"trainable_layers must be an int in 0..{DECODER_LAYERS}")
         prefixes = tuple(f"transformer.decoder.layers.{i}." for i in range(DECODER_LAYERS - trainable_layers, DECODER_LAYERS))
-        names = [n for n, _ in self.model.named_parameters() if n.startswith(prefixes) or n.startswith("bbox_embed.0.") or n.startswith("transformer.decoder.norm.")]
+        # The shared box head is registered twice (`transformer.decoder.bbox_embed` and the top-level `bbox_embed`);
+        # named_parameters() reports each shared tensor once, under the name registered first — in GroundingDINO the
+        # decoder's. Both spellings are listed so the head trains whichever name the network reports.
+        names = [n for n, _ in self.model.named_parameters() if n.startswith(prefixes) or n.startswith(BOX_HEAD_PREFIXES) or n.startswith("transformer.decoder.norm.")]
         return names
 
     def _targets(self, record: Mapping[str, Any]) -> dict[str, Any]:

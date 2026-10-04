@@ -1,6 +1,6 @@
 """Static release-asset validation for the CountGD open-world object counting (E2E) DIMER pipeline.
 
-Checks the STANDALONE tutorial notebook (DIMER Notebook Specification 2.0 §4), the tutorial
+Checks the STANDALONE tutorial notebook (DIMER Notebook Specification 2.2 §4), the tutorial
 registry, model card, README, STATUS.md and weight documentation for source conformance and
 cross-document identity consistency, and runs the generator parity checks (PAR1–PAR3).
 
@@ -63,7 +63,8 @@ CODE_MARKERS = (
     "fsc_splits = build_sample_dataset(corpus, seed=SPLIT_SEED)",
     "fsc_manifest = validate_dataset(fsc_splits['test'])",
     "records = load_byod_dataset(byod_zip)",
-    "splits = split_dataset(records, seed=SPLIT_SEED)",
+    "splits = split_byod(records, SPLIT_SEED)",
+    "parts = split_dataset(checked, seed=seed)",
     "dataset_manifests = {name: validate_dataset(part) for name, part in splits.items()}",
     "disjoint = check_split_disjoint(splits)",
     "write_dataset_csv(train_records, 'outputs/countgd_object_counting_train.csv')",
@@ -84,7 +85,17 @@ CODE_MARKERS = (
     "demo_adapted = {mode: pipe.count(demo['image'], **kwargs)['results'][0] for mode, kwargs in PROMPTS.items()}",
     "pipe.save_artifact(artifact_dir, metadata={'tutorial': 'countgd_object_counting', 'data_source': data_source})",
     "reloaded = CountGDPipeline.from_artifact(artifact_dir, weights_dir=WEIGHTS_DIR, tokenizer_dir=TOKENIZER_WEIGHTS_DIR, device=pipe.device)",
-    "assert parity['identical_counts'] == parity['of'] and parity['max_abs_box_difference'] < 0.05 and parity['max_abs_score_difference'] < 1e-4",
+    "if not (parity['identical_counts'] == parity['of'] and parity['max_abs_box_difference'] < 0.05 and parity['max_abs_score_difference'] < 1e-4):",
+    # Review fixes (row-16 review: CGD-M2 BYOD size/annotation rules, CGD-M3 frozen-base reload, CGD-m1 zip checks, CGD-m3 BYOD predictions)
+    "BYOD_MIN_IMAGES_ONE_CATEGORY = 18",
+    "byod_zip = check_byod_zip(uploaded_zip, Path('work') / 'byod.zip')",
+    "has a count but neither points nor boxes",
+    "box_example = example if example.get('boxes') else synthetic_scene(DEMO_SEED)",
+    "assert frozen_syn['boxes']['n'] == scored['boxes'] and frozen_syn['localisation']['n'] == scored['points']",
+    "return CountGDPipeline.from_pretrained(weights_dir=WEIGHTS_DIR, tokenizer_dir=TOKENIZER_WEIGHTS_DIR)",
+    "raise RuntimeError(f'Reload parity failed: {parity}.",
+    "outputs/countgd_object_counting_byod_predictions.json",
+    "this runtime has no upload dialog (it is not Colab)",
     "write_provenance('outputs/provenance.json', pipeline=pipe)",
     "'model_revision': MODEL_REVISION",
     "'model_license': MODEL_LICENSE",
@@ -122,6 +133,40 @@ MARKDOWN_MARKERS = (
     "**Baselines first:**",
     "**Watch the other set:**",
     "**Dense images need cropping:**",
+    # Review fixes: guided layer (CGD-M4), runtime (CGD-M1), BYOD contract (CGD-M2), runtimes (CGD-m2), caveat (CGD-m3)
+    "### Who this is for",
+    "### How to use this notebook",
+    "### Roadmap",
+    "### Input → Model → Output",
+    "## Before Section 4: glossary",
+    "**Predict first.**",
+    "#### What to notice (Section 5)",
+    "#### What to notice (Section 6)",
+    "#### What to notice (Section 8)",
+    "<details><summary>Sample answer",
+    "## 10. Activity: change how much of the decoder trains",
+    "**Predict:**",
+    "**Change one thing:**",
+    "**Observe:**",
+    "**Explain:**",
+    "## Troubleshooting",
+    "## Conclusion template",
+    "**Linux x86_64 runtimes only**",
+    "**at least 18 images**",
+    "**Every image needs `points` or `boxes`**",
+    "**Which epoch is kept varies by runtime:**",
+    "absent from FSC-147's training split",
+)
+# Learner-facing text the review fixes removed; it must not come back (CGD-M1 restart guidance, CGD-M2 wrong minimum,
+# CGD-m2 CPU-only expected numbers, the TRAINABLE_LAYERS = 0 experiment described as the box head alone).
+STALE_MARKDOWN = (
+    "installed directly — there is no repository clone",
+    "the cell stops with a restart instruction",
+    "at least eight images",
+    "the build record measured MAE 7.42 →",
+    "so the selector kept epoch 3",
+    "to train the box head alone",
+    "categories CountGD never saw",
 )
 # Direct-library use that must stay inside the carried module cells (G2: the notebook calls the
 # pipeline API, it does not reimplement it). Checked on every code cell except the embedded ones
@@ -157,10 +202,10 @@ INSTALL_CELL_MARKER = "subprocess.run([sys.executable, '-m', 'pip', 'install', '
 # ---------------------------------------------------------------------------
 # Shared checks. Everything below is source/structure validation only. Passing
 # these checks is NOT clean-runtime execution evidence under DIMER Notebook
-# Specification 2.0; see docs/release-verification.md for the release gate.
+# Specification 2.2; see docs/release-verification.md for the release gate.
 # ---------------------------------------------------------------------------
 
-NOTEBOOK_SPEC = "2.0"
+NOTEBOOK_SPEC = "2.2"
 ALLOWED_PROFILES = {"E2E", "ARTIFACT-INFERENCE", "TASK-INFERENCE", "MULTI-CAPABILITY", "SMOKE"}
 STATUS_TOKENS = ("Candidate", "Release-grade")
 PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b|Insert text here|Tooltip:", re.I)
@@ -621,8 +666,13 @@ def _validate_embedded_modules(path: Path, notebook: dict, build) -> list[int]:
             cell["metadata"]["dimer"].get("module_sha256") == context["per_module_sha256"][rel],
             f"{path.name}: cell {index} module_sha256 tag does not match {rel}",
         )
+        # CGD-M4: a carried cell is the module text after the rewrites plus the generator's one Infrastructure title line.
         _check(
-            _cell_source(cell).rstrip("\n") + "\n" == context["embedded"][module],
+            _cell_source(cell).startswith(f"{build.CARRIED_TITLE_PREFIX}`{rel}`") and cell.get("metadata", {}).get("cellView") == "form",
+            f"{path.name}: carried module cell {index} must start with the generator's Infrastructure title and be collapsed (cellView: form)",
+        )
+        _check(
+            build.strip_carried_title(_cell_source(cell)).rstrip("\n") + "\n" == context["embedded"][module],
             f"{path.name}: embedded module cell {index} differs from {rel} (PAR1); regenerate the notebook",
         )
     return [index for index, _ in tagged]
@@ -689,8 +739,20 @@ def _validate_notebook_content(
     _check(not missing, f"{path.name}: missing required source markers: {missing}")
     present = [label for label, pattern in FORBIDDEN_PATTERNS if pattern.search(code)]
     _check(not present, f"{path.name}: forbidden/insecure source: {present}")
+    # CGD-M1: the two `# dimer: kernel cell` cells (isolated install + router) and the runtime-record cell are
+    # generator-owned infrastructure; the install cell is the one place `subprocess.run([` belongs.
+    kernel = {index for index, source, _tree in code_cells if "# dimer: kernel cell" in source}
+    _check(len(kernel) == 2, f"{path.name}: expected exactly two kernel cells (isolated install, router), found {sorted(kernel)}")
+    install = next((source for index, source, _tree in code_cells if index in kernel and "LOCK_TEXT = r" in source), "")
+    for needed in ('"--managed-python"', '"--require-hashes"', '"--only-binary"', '":all:"', "UV_SHA256", "LOCK_SHA256", 'platform.machine() != "x86_64"'):
+        _check(needed in install, f"{path.name}: the isolated install cell must use {needed} (CGD-M1)")
+    for index, source, _tree in code_cells:
+        if index in kernel or INSTALL_CELL_MARKER in source:
+            _check(source.startswith("# @title Infrastructure:"), f"{path.name}: install/runtime cell {index} must be titled `Infrastructure:` (CGD-M4)")
+    stale = [marker for marker in STALE_MARKDOWN if marker in markdown]
+    _check(not stale, f"{path.name}: stale learner-facing text: {stale}")
     outside_stage_cells = "\n".join(
-        text for index, text in stripped.items() if index not in embedded and INSTALL_CELL_MARKER not in text
+        text for index, text in stripped.items() if index not in embedded and index not in kernel and INSTALL_CELL_MARKER not in text
     )
     leaked = [marker for marker in FORBIDDEN_OUTSIDE_MODULE if marker in outside_stage_cells]
     _check(not leaked, f"{path.name}: direct library use outside the carried module cell (G2): {leaked}")

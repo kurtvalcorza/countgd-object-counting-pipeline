@@ -1,0 +1,270 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/countgd-object-counting-pipeline-477b185-16de14/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop_477b185_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/49 - Notebook controls...
+{'tier': 'STANDARD', 'detection_score_floor': 0.05, 'common_nms_iou': 0.5, 'countgd_threshold': 0.23, 'optional': {'activity': False, 'activity_countgd_threshold': 0.3, 'byod': False}}
+[colab] Executing cell 2/49 - Infrastructure: carried cell runner and hash lock...
+Carried cell runner and hash lock verified: ['cell_runner.py', 'requirements.lock.txt']
+[colab] Executing cell 3/49 - Infrastructure: build the isolated runtime and start its Python process...
+GPU: Tesla T4
+Creating the isolated Python 3.12.12 environment...
+Installing the hashed dependency lock (several minutes; CUDA wheels are large)...
+{'isolated_python': '3.12.12', 'interpreter': 'work/env/bin/python', 'lock_sha256': '045ccc321614e3147f9a111c145464fbf12bebdaef0139831e8800bc65372eb1', 'kernel_installs': 'none (the kernel only shows what the isolated process returns)'}
+[colab] Executing cell 4/49 - Infrastructure: libraries inside the isolated environment...
+{'python': '3.12.12', 'executable': '/content/work/env/bin/python', 'torch': '2.14.0+cu130', 'torchvision': '0.29.0+cu130', 'transformers': '4.57.6', 'numpy': '2.5.3', 'device': 'cuda:0', 'gpu': 'Tesla T4'}
+[colab] Executing cell 5/49 - Infrastructure: exact snapshot manifests...
+[colab] Executing cell 6/49 - Shared synthetic generator...
+{'train': {'scenes': 24, 'targets': 541, 'distractors': 303}, 'validation': {'scenes': 8, 'targets': 232, 'distractors': 118}, 'test': {'scenes': 12, 'targets': 278, 'distractors': 143}}
+[colab] Executing cell 7/49 - Export sample manifest...
+dataset_sha256: 2eae4c91aeb997b85f20a438f8dabf7d2522995313bfab7d447e43c98ff00de1
+[colab] Executing cell 8/49 - Shared scene gallery...
+<Figure size 1300x800 with 6 Axes>
+
+[Image saved to: /tmp/tmpb4vu201_.png]
+[colab] Executing cell 9/49 - Detection metrics and common NMS...
+[colab] Executing cell 10/49 - Counting and localisation metrics...
+[colab] Executing cell 11/49 - Infrastructure: stage and verify the pinned snapshots...
+Verified: work/models/grounding_dino work/models/owlv2
+[colab] Executing cell 12/49 - Frozen open-vocabulary detector wrappers...
+[colab] Executing cell 13/49 - Run Grounding DINO validation, then unload...
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+| model | output | ap | ap50 | ap75 | precision50 | recall50 | mean_matched_iou 
+| false_positives_per_image | missed_objects_per_image |                        
+duplicate_detections_per_image                                                  
+---|---|---|---|---|---|---|---|---|---|---|---                                 
+0 | grounding_dino | raw | 0.772693 | 0.990674 | 0.983780 | 0.953552 | 0.997143 
+| 0.875717 | 2.125 | 0.125 | 0.375                                              
+1 | grounding_dino | common_nms | 0.772268 | 0.990705 | 0.983811 | 0.961433 |   
+0.997143 | 0.875717 | 1.750 | 0.125 | 0.000                                     
+2 | owlv2 | raw | 0.905432 | 1.000000 | 1.000000 | 0.857843 | 1.000000 |        
+0.936082 | 7.250 | 0.000 | 5.375                                                
+3 | owlv2 | common_nms | 0.905030 | 1.000000 | 1.000000 | 0.961538 | 1.000000 | 
+0.936082 | 1.750 | 0.000 | 0.000                                                
+| grounding_dino (raw) | grounding_dino (common_nms) | owlv2 (raw) | owlv2      
+(common_nms)                                                                    
+---|---|---|---|---                                                             
+phrase (AP50) |  |  |  |                                                        
+blue square | 0.976365 | 0.976365 | 1.0 | 1.0                                   
+blue triangle | 0.992669 | 0.992982 | 1.0 | 1.0                                 
+green circle | 1.000000 | 1.000000 | 1.0 | 1.0                                  
+green square | 0.971429 | 0.971429 | 1.0 | 1.0                                  
+green triangle | 1.000000 | 1.000000 | 1.0 | 1.0                                
+red circle | 1.000000 | 1.000000 | 1.0 | 1.0                                    
+red square | 0.971102 | 0.971102 | 1.0 | 1.0                                    
+yellow circle | 0.996873 | 0.996873 | 1.0 | 1.0                                 
+yellow square | 0.998303 | 0.998303 | 1.0 | 1.0                                 
+yellow triangle | 1.000000 | 1.000000 | 1.0 | 1.0                               
+[colab] Executing cell 14/49 - Prompt sensitivity / absent prompt on a bounded validation subset...
+| model | template | absent_false_boxes_per_image | ap | ap50 | ap75 |          
+precision50 | recall50 | mean_matched_iou | false_positives_per_image |         
+missed_objects_per_image | duplicate_detections_per_image                       
+---|---|---|---|---|---|---|---|---|---|---|---|---                             
+0 | grounding_dino | bare | 20.75 | 0.788209 | 0.989336 | 0.989336 | 0.950249 | 
+0.994792 | 0.880246 | 2.50 | 0.25 | 0.25                                        
+1 | grounding_dino | photo | 20.75 | 0.336719 | 0.724645 | 0.103876 | 0.625698 |
+0.583333 | 0.723386 | 16.75 | 20.00 | 5.00                                      
+2 | owlv2 | bare | 0.25 | 0.908766 | 1.000000 | 1.000000 | 0.860987 | 1.000000 |
+0.936093 | 7.75 | 0.00 | 5.25                                                   
+3 | owlv2 | photo | 0.25 | 0.906133 | 0.997264 | 0.997264 | 0.950495 | 1.000000 
+| 0.936093 | 2.50 | 0.00 | 1.00                                                 
+[colab] Executing cell 15/49 - Infrastructure: carried source countgd_pipeline/__init__.py...
+[colab] Executing cell 16/49 - Infrastructure: carried source countgd_pipeline/config.py...
+[colab] Executing cell 17/49 - Infrastructure: carried source countgd_pipeline/metrics.py...
+[colab] Executing cell 18/49 - Infrastructure: carried source countgd_pipeline/model.py...
+[colab] Executing cell 19/49 - Infrastructure: carried source countgd_pipeline/modeling.py...
+[colab] Executing cell 20/49 - Infrastructure: carried source countgd_pipeline/pipeline.py...
+[colab] Executing cell 21/49 - Infrastructure: carried source countgd_pipeline/provenance.py...
+[colab] Executing cell 22/49 - Infrastructure: carried source countgd_pipeline/samples.py...
+[colab] Executing cell 23/49 - Infrastructure: carried source countgd_pipeline/synthetic.py...
+[colab] Executing cell 24/49 - Infrastructure: carried source grounding_dino_detection_pipeline/__init__.py...
+[colab] Executing cell 25/49 - Infrastructure: carried source grounding_dino_detection_pipeline/metrics.py...
+[colab] Executing cell 26/49 - Infrastructure: carried source grounding_dino_detection_pipeline/pipeline.py...
+[colab] Executing cell 27/49 - Infrastructure: carried source grounding_dino_detection_pipeline/samples.py...
+[colab] Executing cell 28/49 - Infrastructure: verify and stage the carried CountGD source...
+{'carrier_commit': 'bd38240a7c242efe9b81173d3df5e0193b7d227b', 'files': 9, 'source': 'carried in this notebook; every Git blob verified before import'}
+[colab] Executing cell 29/49 - Infrastructure: stage, audit and load CountGD...
+/content/work/env/lib/python3.12/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/native/TensorShape.cpp:4221.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+{'device': 'cuda:0', 'weight_sha256': '8e44867b951e3a4205d918e022b78bc5fea218fd17c1851b864a01c421d2d443'}
+[colab] Executing cell 30/49 - Map shared records to CountGD records...
+/content/work/env/lib/python3.12/site-packages/transformers/modeling_utils.py:1621: FutureWarning: The `device` argument is deprecated and will be removed in v5 of Transformers.
+  warnings.warn(
+/content/work/carrier_src/countgd_pipeline/modeling.py:2927: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+| mode | mae | rmse | nae | exact | point_f1 | box_f1                           
+---|---|---|---|---|---|---|---                                                 
+0 | text | 2.875 | 4.458139 | 0.090322 | 0.25 | 0.944330 | 0.705155             
+1 | exemplar | 15.125 | 15.504032 | 0.544711 | 0.00 | 0.789744 | 0.581197       
+2 | text+exemplar | 9.375 | 11.869077 | 0.381851 | 0.25 | 0.852336 | 0.613084   
+[colab] Executing cell 31/49 - Count baselines...
+{'mean_count': 23, 'mean_validation': {'mae': 8.75, 'rmse': 9.924716620639604, 'nae': 0.3164792785381021, 'exact_fraction': 0.0, 'under_count_fraction': 0.75, 'over_count_fraction': 0.25}, 'template_validation': {'mae': 23.0, 'rmse': 26.865405264019376, 'nae': 0.7922765072765073, 'exact_fraction': 0.125}}
+[colab] Executing cell 32/49 - Select detector counting thresholds on validation...
+grounding_dino selected {'threshold': 0.1, 'mae': 0.75, 'rmse': 1.0, 'nae': 0.02165474297827239, 'exact_fraction': 0.375}
+| threshold | mae | rmse | nae | exact_fraction                                 
+---|---|---|---|---|---                                                         
+0 | 0.05 | 1.50 | 1.802776 | 0.052385 | 0.000                                   
+1 | 0.10 | 0.75 | 1.000000 | 0.021655 | 0.375                                   
+2 | 0.15 | 2.00 | 4.301163 | 0.074898 | 0.375                                   
+3 | 0.20 | 6.00 | 8.986100 | 0.210523 | 0.125                                   
+4 | 0.30 | 16.25 | 19.576772 | 0.573539 | 0.125                                 
+5 | 0.40 | 27.50 | 28.757608 | 0.943335 | 0.000                                 
+owlv2 selected {'threshold': 0.3, 'mae': 0.125, 'rmse': 0.3535533905932738, 'nae': 0.0033783783783783786, 'exact_fraction': 0.875}
+| threshold | mae | rmse | nae | exact_fraction                                 
+---|---|---|---|---|---                                                         
+0 | 0.05 | 3.750 | 4.555217 | 0.172241 | 0.125                                  
+1 | 0.10 | 1.375 | 2.150581 | 0.058581 | 0.375                                  
+2 | 0.15 | 0.500 | 0.866025 | 0.020539 | 0.625                                  
+3 | 0.20 | 0.125 | 0.353553 | 0.003378 | 0.875                                  
+4 | 0.30 | 0.125 | 0.353553 | 0.003378 | 0.875                                  
+5 | 0.40 | 0.250 | 0.707107 | 0.006757 | 0.875                                  
+[colab] Executing cell 33/49 - Optional FULL Grounding DINO carrier bootstrap + adaptation...
+STANDARD: Grounding DINO adaptation skipped.
+[colab] Executing cell 34/49 - Optional FULL CountGD adaptation + adapter export...
+STANDARD: CountGD adaptation skipped.
+[colab] Executing cell 35/49 - Freeze experiment...
+Frozen: outputs/frozen/frozen_experiment.json
+[colab] Executing cell 36/49 - Frozen Grounding DINO test...
+| model | output | ap | ap50 | ap75 | precision50 | recall50 | mean_matched_iou 
+| false_positives_per_image | missed_objects_per_image |                        
+duplicate_detections_per_image                                                  
+---|---|---|---|---|---|---|---|---|---|---|---                                 
+0 | grounding_dino | raw | 0.775881 | 0.992283 | 0.943425 | 0.919643 | 0.978622 
+| 0.874182 | 3.000000 | 0.75 | 1.000000                                         
+1 | grounding_dino | common_nms | 0.776285 | 0.994871 | 0.944393 | 0.962617 |   
+0.978622 | 0.874182 | 1.333333 | 0.75 | 0.000000                                
+2 | owlv2 | raw | 0.914456 | 1.000000 | 1.000000 | 0.860941 | 1.000000 |        
+0.937422 | 5.666667 | 0.00 | 4.416667                                           
+3 | owlv2 | common_nms | 0.913653 | 1.000000 | 1.000000 | 0.970046 | 1.000000 | 
+0.937422 | 1.083333 | 0.00 | 0.000000                                           
+| grounding_dino (raw) | grounding_dino (common_nms) | owlv2 (raw) | owlv2      
+(common_nms)                                                                    
+---|---|---|---|---                                                             
+phrase (AP50) |  |  |  |                                                        
+blue circle | 1.000000 | 1.000000 | 1.0 | 1.0                                   
+blue square | 0.966289 | 0.981683 | 1.0 | 1.0                                   
+green circle | 1.000000 | 1.000000 | 1.0 | 1.0                                  
+green square | 1.000000 | 1.000000 | 1.0 | 1.0                                  
+green triangle | 0.965963 | 0.977108 | 1.0 | 1.0                                
+red circle | 1.000000 | 1.000000 | 1.0 | 1.0                                    
+red square | 1.000000 | 1.000000 | 1.0 | 1.0                                    
+red triangle | 1.000000 | 1.000000 | 1.0 | 1.0                                  
+yellow circle | 0.982861 | 0.984785 | 1.0 | 1.0                                 
+yellow square | 1.000000 | 1.000000 | 1.0 | 1.0                                 
+yellow triangle | 1.000000 | 1.000000 | 1.0 | 1.0                               
+[colab] Executing cell 37/49 - FULL adapted Grounding DINO test...
+STANDARD: adapted Grounding DINO test skipped.
+[colab] Executing cell 38/49 - Frozen/adapted CountGD test...
+/content/work/env/lib/python3.12/site-packages/transformers/modeling_utils.py:1621: FutureWarning: The `device` argument is deprecated and will be removed in v5 of Transformers.
+  warnings.warn(
+/content/work/carrier_src/countgd_pipeline/modeling.py:2927: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+| system | mae | rmse | nae | exact | point_f1 | box_f1                         
+---|---|---|---|---|---|---|---                                                 
+0 | frozen_text | 4.666667 | 7.047458 | 0.232904 | 0.333333 | 0.908497 |        
+0.500000                                                                        
+1 | frozen_exemplar | 11.666667 | 12.516656 | 0.731769 | 0.000000 | 0.798851 |  
+0.488506                                                                        
+2 | frozen_text+exemplar | 7.416667 | 9.970791 | 0.540773 | 0.333333 | 0.862016 
+| 0.452713                                                                      
+[colab] Executing cell 39/49 - Baselines + detector-as-counter on independent test...
+| system | prompt | mae | rmse | nae | exact_fraction | point_f1 | box_f1       
+---|---|---|---|---|---|---|---|---                                             
+0 | mean_count | none | 10.000000 | 11.113055 | 0.628490 | 0.000000 | NaN | NaN 
+1 | template_matcher | exemplar | 14.500000 | 17.837227 | 0.721583 | 0.166667 | 
+NaN | NaN                                                                       
+2 | grounding_dino_as_counter | text | 1.250000 | 1.658312 | 0.058596 | 0.166667
+| 0.962433 | 0.962433                                                           
+3 | owlv2_as_counter | text | 1.500000 | 4.915960 | 0.039013 | 0.833333 |       
+0.966667 | 0.966667                                                             
+4 | countgd_frozen_text | text | 4.666667 | 7.047458 | 0.232904 | 0.333333 |    
+0.908497 | 0.500000                                                             
+5 | countgd_frozen_exemplar | exemplar | 11.666667 | 12.516656 | 0.731769 |     
+0.000000 | 0.798851 | 0.488506                                                  
+6 | countgd_frozen_text+exemplar | text+exemplar | 7.416667 | 9.970791 |        
+0.540773 | 0.333333 | 0.862016 | 0.452713                                       
+[colab] Executing cell 40/49 - Density groups and distractor diagnostics...
+| system | density | scenes | mean_abs_error | mean_signed_error                
+---|---|---|---|---|---                                                         
+0 | countgd_frozen_exemplar | high | 5 | 12.400000 | 12.400000                  
+1 | countgd_frozen_exemplar | low | 4 | 14.000000 | 14.000000                   
+2 | countgd_frozen_exemplar | medium | 3 | 7.333333 | 7.333333                  
+3 | countgd_frozen_text | high | 5 | 5.800000 | 5.800000                        
+4 | countgd_frozen_text | low | 4 | 4.000000 | 4.000000                         
+5 | countgd_frozen_text | medium | 3 | 3.666667 | 3.666667                      
+6 | countgd_frozen_text+exemplar | high | 5 | 5.800000 | 5.800000               
+7 | countgd_frozen_text+exemplar | low | 4 | 11.250000 | 11.250000              
+8 | countgd_frozen_text+exemplar | medium | 3 | 5.000000 | 5.000000             
+9 | grounding_dino_as_counter | high | 5 | 1.400000 | -1.000000                 
+10 | grounding_dino_as_counter | low | 4 | 0.750000 | 0.750000                  
+11 | grounding_dino_as_counter | medium | 3 | 1.666667 | 1.666667               
+12 | owlv2_as_counter | high | 5 | 3.600000 | -3.200000                         
+13 | owlv2_as_counter | low | 4 | 0.000000 | 0.000000                           
+14 | owlv2_as_counter | medium | 3 | 0.000000 | 0.000000                        
+| system | mean_signed_error | mean_distractors |                               
+corr_signed_error_vs_distractors | share_closer_to_targets_plus_distractors     
+---|---|---|---|---|---                                                         
+0 | grounding_dino_as_counter | 0.250000 | 11.916667 | -0.162043 | 0.083333     
+1 | owlv2_as_counter | -1.333333 | 11.916667 | 0.021569 | 0.000000              
+2 | countgd_frozen_text | 4.666667 | 11.916667 | 0.060249 | 0.500000            
+3 | countgd_frozen_exemplar | 11.666667 | 11.916667 | 0.983821 | 1.000000       
+4 | countgd_frozen_text+exemplar | 7.416667 | 11.916667 | 0.368673 | 0.583333   
+[colab] Executing cell 41/49 - Detection disagreement gallery...
+<Figure size 1500x500 with 3 Axes>
+
+[Image saved to: /tmp/tmpfrq3ppr5.png]
+<Figure size 1500x500 with 3 Axes>
+
+[Image saved to: /tmp/tmps8kap8j7.png]
+<Figure size 1500x500 with 3 Axes>
+
+[Image saved to: /tmp/tmpfyjzfjp5.png]
+[colab] Executing cell 42/49 - Optional FSC-147 regression check...
+STANDARD: FSC-147 regression check skipped.
+[colab] Executing cell 43/49 - Optional adapter reload parity...
+STANDARD: adapter reload verification not applicable.
+[colab] Executing cell 44/49 - New scenes...
+/content/work/env/lib/python3.12/site-packages/transformers/modeling_utils.py:1621: FutureWarning: The `device` argument is deprecated and will be removed in v5 of Transformers.
+  warnings.warn(
+/content/work/carrier_src/countgd_pipeline/modeling.py:2927: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+| id | target_label | gold | predicted | distractor_count                       
+---|---|---|---|---|---                                                         
+0 | synth-04000 | green triangle | 39 | 48 | 9                                  
+1 | synth-04001 | yellow triangle | 13 | 20 | 7                                 
+2 | synth-04002 | blue square | 34 | 38 | 16                                    
+{'CountGD_text+exemplar_MAE': 6.666666666666667, 'new_scenes': ['synth-04000', 'synth-04001', 'synth-04002']}
+[colab] Executing cell 45/49 - Optional activity: re-count validation scenes at another CountGD threshold...
+Activity not run (RUN_ACTIVITY=False). To try it: tick RUN_ACTIVITY and choose ACTIVITY_COUNTGD_THRESHOLD in the controls cell (section 1), run that cell, then run this cell.
+[colab] Executing cell 46/49 - Infrastructure: BYOD archive reader, validator and evaluation...
+BYOD validator refusal example (no model runs): boxes.csv row 2: box [10, 10, 90, 20] is empty or outside the 64x48 image images/demo1.png
+[colab] Executing cell 47/49 - Optional BYOD branch (off by default)...
+BYOD disabled (USE_BYOD=False). To score your own scenes: build the zip described above, set USE_BYOD (and BYOD_ZIP_PATH) in the controls cell, run that cell, then this cell.
+[colab] Executing cell 48/49 - Infrastructure: final provenance export and report bundle...
+{'bundle': '/content/outputs_DIMER_Open_Vocab_Detection_Counting_Report.zip', 'sha256': 'e1bb1ef34fa6ca239e81f8944c3e75b0d94ee4561ecd82711392cfcace4e6b4f', 'files': 17, 'left_out_from_earlier_runs': []}
+[colab] Executing cell 49/49 - Run-all completion summary...
+| system | test_ap50 | test_mae | test_box_f1                                   
+---|---|---|---|---                                                             
+0 | grounding_dino detection (raw) | 0.992283 | NaN | NaN                       
+1 | owlv2 detection (raw) | 1.000000 | NaN | NaN                                
+2 | mean_count | NaN | 10.000000 | NaN                                          
+3 | template_matcher | NaN | 14.500000 | NaN                                    
+4 | grounding_dino_as_counter | NaN | 1.250000 | 0.962433                       
+5 | owlv2_as_counter | NaN | 1.500000 | 0.966667                                
+6 | countgd_frozen_text | NaN | 4.666667 | 0.500000                             
+7 | countgd_frozen_exemplar | NaN | 11.666667 | 0.488506                        
+8 | countgd_frozen_text+exemplar | NaN | 7.416667 | 0.452713                    
+| value                                                                         
+---|---                                                                         
+notebook_spec | 2.1                                                             
+profile | MULTI-CAPABILITY                                                      
+mode | WORKSHOP                                                                 
+tier | STANDARD                                                                 
+models | [Grounding DINO Tiny, OWLv2 Base P16 Ensemble,...                      
+dataset_sha256 | 2eae4c91aeb997b85f20a438f8dabf7d2522995313bfab...              
+split_sizes | {'train': 24, 'validation': 8, 'test': 12}                        
+detector_count_thresholds | {'grounding_dino': 0.1, 'owlv2': 0.3}               
+optional_branches | {'full_adaptation': False, 'activity': False, ...           
+report_bundle | /content/outputs_DIMER_Open_Vocab_Detection_Co...               
+output_directory | /content/outputs                                             
+release_status | candidate                                                      
+release_gate | fresh T4 Run all of this revision (STANDARD, a...                
+Open-vocabulary detection and counting notebook complete. Interpret all built-in results as synthetic sample-sanity evidence.
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/countgd-object-counting-pipeline-477b185-16de14/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop_477b185_colab-cli-t4_output.ipynb'...

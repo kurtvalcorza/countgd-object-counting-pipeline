@@ -36,8 +36,8 @@ def test_release_notebook_declares_e2e_profile() -> None:
     notebook = _load_notebook()
     dimer = notebook["metadata"]["dimer"]
     assert dimer["notebook_profile"] == "E2E"
-    assert dimer["notebook_spec"] == "2.0"
-    assert dimer["standalone"] is True  # NOTEBOOK_SPEC 2.0 §4; parity in test_notebook_parity.py
+    assert dimer["notebook_spec"] == "2.2"
+    assert dimer["standalone"] is True  # NOTEBOOK_SPEC 2.2 §4; parity in test_notebook_parity.py
 
     registry = REGISTRY.read_text(encoding="utf-8")
     assert "countgd_object_counting_colab.ipynb" in registry
@@ -69,7 +69,8 @@ def test_release_notebook_has_gated_byod_path() -> None:
     assert "USE_BYOD = False" in source
     assert "files.upload()" in source
     assert "records = load_byod_dataset(byod_zip)" in source
-    assert "splits = split_dataset(records, seed=SPLIT_SEED)" in source
+    assert "splits = split_byod(records, SPLIT_SEED)" in source
+    assert "parts = split_dataset(checked, seed=seed)" in source
 
 
 def test_release_notebook_exercises_the_counting_and_adaptation_contracts() -> None:
@@ -90,7 +91,7 @@ def test_release_notebook_exercises_the_counting_and_adaptation_contracts() -> N
         "adapted_syn = pipe.evaluate(test_records)",
         "pipe.save_artifact(artifact_dir,",
         "reloaded = CountGDPipeline.from_artifact(artifact_dir, weights_dir=WEIGHTS_DIR, tokenizer_dir=TOKENIZER_WEIGHTS_DIR, device=pipe.device)",  # noqa: E501
-        "assert parity['identical_counts'] == parity['of']",
+        "if not (parity['identical_counts'] == parity['of']",
     ):
         assert marker in source, marker
 
