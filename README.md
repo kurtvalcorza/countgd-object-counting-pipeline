@@ -67,9 +67,9 @@ pipe.save_artifact("outputs/adapter")
 reloaded = CountGDPipeline.from_artifact("outputs/adapter")
 ```
 
-`adapt` trains the last `trainable_layers` decoder layers (two by default) and the decoder's final LayerNorm —
-3,619,584 of 233,362,816 parameters; the shared box head (`transformer.decoder.bbox_embed.*`) is not in the trained
-set — on upstream's objective: the token sigmoid focal loss and
+`adapt` trains the last `trainable_layers` decoder layers (two by default), the decoder's final LayerNorm and the
+shared box head (`transformer.decoder.bbox_embed.0.*`) — 3,752,196 of 233,362,816 parameters in 64 tensors — on
+upstream's objective: the token sigmoid focal loss and
 the L1 box loss after Hungarian matching, over the final and every intermediate decoder output. Records with
 `boxes` train on their gold object boxes; records with points only train on upstream's 2 × 2-pixel boxes centred
 on the points. One image per step, AdamW (weight decay 1e-4), gradient clipping at 0.1, seeded order. Epoch 0
@@ -226,7 +226,7 @@ This repository does **not** claim to provide:
 - the upstream test-time cropping for images with more objects than one 800-pixel pass resolves, or the
   upstream SAM-based test-time normalisation;
 - calibrated confidence;
-- fine-tuning beyond the last decoder layers and the decoder norm, or training from scratch;
+- fine-tuning beyond the last decoder layers, the decoder norm and the shared box head, or training from scratch;
 - evaluation on the full FSC-147 benchmark (the tutorial scores 24 of its test photographs);
 - production HTTP serving or DIMER worker packaging.
 

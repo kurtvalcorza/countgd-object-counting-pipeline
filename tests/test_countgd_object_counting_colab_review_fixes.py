@@ -393,19 +393,23 @@ def test_byod_rerun_from_section4_scores_the_frozen_model(nb: dict, ns: dict[str
     assert {k: ns["frozen_syn"][k] for k in ("mae", "rmse")} == fresh
 
 
-def test_the_trained_set_does_not_contain_the_real_box_head() -> None:
-    """The real network registers the shared box head first under transformer.decoder.bbox_embed, so the package's
-    `bbox_embed.0.` prefix never matches it: 0 layers train only the decoder norm (512 parameters, 2 tensors)."""
-    import torch
+def test_the_shared_box_head_is_trainable_by_default_under_its_real_name() -> None:
+    """CGD-x1 (Kurt: option B). The real network registers the shared box head first under
+    transformer.decoder.bbox_embed, so named_parameters() reports it there; the default trained set must contain it
+    (before the fix the `bbox_embed.0.` prefix never matched and the head stayed frozen)."""
+    from countgd_pipeline import DEFAULT_TRAINABLE_LAYERS, CountGDPipeline
 
-    from countgd_pipeline import CountGDPipeline
-
-    model = FakeModel()
-    model.transformer.decoder.bbox_embed = model.bbox_embed  # registered inside the transformer, as in GroundingDINO
-    shared = torch.nn.Module()
-    shared.transformer = model.transformer
-    shared.bbox_embed = model.bbox_embed  # registered after the transformer: named_parameters keeps the first name
+    shared = FakeModel()  # `transformer` is registered before the top-level `bbox_embed`, as in GroundingDINO
+    shared.transformer.decoder.bbox_embed = shared.bbox_embed  # the decoder's alias: named_parameters keeps this name
     pipe = CountGDPipeline(shared, FakeCriterion(), FakeTokenizer(), device="cpu")
-    names = pipe._trainable_names(0)
-    assert names == ["transformer.decoder.norm.weight", "transformer.decoder.norm.bias"]
-    assert sum(p.numel() for n, p in shared.named_parameters() if n in names) == 512
+    head = [n for n, _ in shared.named_parameters() if "bbox_embed" in n]
+    assert head and all(n.startswith("transformer.decoder.bbox_embed.0.") for n in head)
+    default = pipe._trainable_names(DEFAULT_TRAINABLE_LAYERS)
+    assert set(head) <= set(default)
+    assert pipe._trainable_names(0) == ["transformer.decoder.norm.weight", "transformer.decoder.norm.bias", *head]
+    # and adapt() really lets gradients reach it
+    report = pipe.adapt(
+        [{"id": "t0", "image": __import__("test_pipeline")._image(dots=[(40, 60)]), "label": "dot", "count": 1, "boxes": [[36, 56, 44, 64]]}],
+        None, epochs=1, lr=1e-3,
+    )
+    assert set(head) <= set(report["trainable_names"])

@@ -1643,7 +1643,7 @@ Trainable:
 Trainable parameters:
 
 ```text
-3,619,584
+3,752,196 (64 tensors; 3,619,584 before the 2026-10-04 box-head naming fix)
 ```
 
 Artifact:
@@ -1651,7 +1651,7 @@ Artifact:
 approximately:
 
 ```text
-14.5 MB
+15.0 MB
 ```
 
 ---

@@ -158,7 +158,7 @@ MARKDOWN_MARKERS = (
     "absent from FSC-147's training split",
 )
 # Learner-facing text the review fixes removed; it must not come back (CGD-M1 restart guidance, CGD-M2 wrong minimum,
-# CGD-m2 CPU-only expected numbers, the untrained box head named as trained).
+# CGD-m2 CPU-only expected numbers, the TRAINABLE_LAYERS = 0 experiment described as the box head alone).
 STALE_MARKDOWN = (
     "installed directly — there is no repository clone",
     "the cell stops with a restart instruction",
@@ -166,7 +166,6 @@ STALE_MARKDOWN = (
     "the build record measured MAE 7.42 →",
     "so the selector kept epoch 3",
     "to train the box head alone",
-    "the decoder's final LayerNorm and the shared box head train",
     "categories CountGD never saw",
 )
 # Direct-library use that must stay inside the carried module cells (G2: the notebook calls the
