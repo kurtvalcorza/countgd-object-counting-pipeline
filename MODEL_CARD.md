@@ -33,7 +33,7 @@ This repository ships one standalone Google Colab tutorial that exercises its pu
 
 - **E2E Open-World Counting Tutorial**: \
   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kurtvalcorza/countgd-object-counting-pipeline/blob/main/tutorials/countgd_object_counting_colab.ipynb) [`countgd_object_counting_colab.ipynb`](https://github.com/kurtvalcorza/countgd-object-counting-pipeline/blob/main/tutorials/countgd_object_counting_colab.ipynb) \
-  *Counting with the pinned CountGD checkpoint from a text prompt, three exemplar boxes, or both; count error, point localisation and box IoU on synthetic scenes with known boxes and on 24 FSC-147 test photographs, beside a mean-count baseline and a template matcher; a fine-tune of the last two decoder layers and the shared box head with validation-MAE epoch selection; and a safetensors adapter that reloads with verified parity.*
+  *Counting with the pinned CountGD checkpoint from a text prompt, three exemplar boxes, or both; count error, point localisation and box IoU on synthetic scenes with known boxes and on 24 FSC-147 test photographs, beside a mean-count baseline and a template matcher; a fine-tune of the last two decoder layers and the decoder norm with validation-MAE epoch selection; and a safetensors adapter that reloads with verified parity.*
 
 > [!NOTE]
 > The notebook runs on CPU and uses CUDA automatically when present. Its execution records and the promotion requirements are in [release verification](docs/release-verification.md).
@@ -243,7 +243,7 @@ The loader (`countgd_pipeline.model.load_components`, called by `CountGDPipeline
 5. Parameters: 233,362,816 (float32); loaded with `strict=True`.
 6. Tokenizer: `google-bert/bert-base-uncased` at revision `86b5e0934494bd15c9632b12f734a8a67f723594` (vocabulary and configuration only; BERT's weights come from the checkpoint).
 7. Execution policy: no `trust_remote_code`, no Hub-hosted code, no pickle on the load path; the multi-scale deformable attention runs in pure PyTorch.
-8. Adapter artifact format: `org.valcorza.countgd.adapter.v1` — `adapter.safetensors` (the trained tensors: 3,619,584 parameters for the default two decoder layers, the decoder norm and the shared box head) plus `manifest.json` naming the base id, revision and `countgd.safetensors` digest, the objective, the tensor names, the file's size and SHA-256, the configuration and the history.
+8. Adapter artifact format: `org.valcorza.countgd.adapter.v1` — `adapter.safetensors` (the trained tensors: 3,619,584 parameters in 58 tensors for the default two decoder layers and the decoder norm; the shared box head is not trained) plus `manifest.json` naming the base id, revision and `countgd.safetensors` digest, the objective, the tensor names, the file's size and SHA-256, the configuration and the history.
 9. Tutorial data: 80 FSC-147 test photographs (2,732,222 bytes) from `isentropic/FSC147` at revision `3e420cb6537e803dd6d4516623ce82a79c0317b8`, each pinned by byte size and SHA-256 in `countgd_pipeline/samples.py`; synthetic scenes from `countgd_pipeline/synthetic.py`.
 
 ### Public Inference API
@@ -284,7 +284,7 @@ reloaded = CountGDPipeline.from_artifact("outputs/adapter")
 - **Subject:** the same notebook, commit `8d61b94`, Git blob `c619a762`
 - **Runtime:** Kaggle Tesla T4, Python 3.12.13, `torch 2.14.0+cu130`, `transformers 4.57.6`, installed by the notebook from its own pins
 - **Procedure:** clean container with no repository checkout and empty caches, `Run all` in a fresh interpreter, all form fields at their defaults; the notebook fetched the checkpoint from the Space and converted it on the runtime
-- **Observed result:** 16 / 16 code cells ok, one interpreter restart after the install cell, 468.7 s; synthetic test MAE 7.417 → 1.583, box F1 0.453 → 0.546; FSC-147 MAE 4.542 → 3.542; kept epoch 2 (validation MAE 0.875); reload parity 4 / 4 identical counts
+- **Observed result:** 16 / 16 code cells ok on the second pass, after a manual interpreter restart that the in-kernel install required (not a one-pass `Run all`), 468.7 s; synthetic test MAE 7.417 → 1.583, box F1 0.453 → 0.546; FSC-147 MAE 4.542 → 3.542; kept epoch 2 (validation MAE 0.875); reload parity 4 / 4 identical counts
 - **Caveats:** the fine-tune's result differs from the CPU run because CUDA kernels are not bit-deterministic; one observation on one seeded draw
 
 ### Upstream References and Citations

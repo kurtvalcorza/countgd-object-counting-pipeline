@@ -3,7 +3,7 @@
 `tutorials/countgd_object_counting_colab.ipynb` (`E2E`, **standalone** carrier) is a **release candidate** until
 the exact notebook revision has executed top-to-bottom in a clean supported runtime. Unit tests, JSON validation,
 code-cell compilation, the generator parity checks and `tools/validate_release_assets.py` are necessary checks but
-are **not** runtime evidence under DIMER Notebook Specification 2.0 (REL8). This file is the durable release-gate
+are **not** runtime evidence under DIMER Notebook Specification 2.2 (REL8). This file is the durable release-gate
 record for the notebook.
 
 ## Automatic coverage (static, every pull request)
@@ -13,7 +13,7 @@ CI runs `tools/validate_release_assets.py`, which checks:
 - notebook JSON parses; every code cell compiles as plain Python (no `%`/`!` magics); no persisted outputs or
   execution counts; no unresolved placeholder markers; every code cell is preceded by an explanatory markdown cell;
 - exactly one tutorial notebook, named in `tutorials/README.md` with its `E2E` profile, the notebook-spec version
-  and the standalone carrier; `metadata.dimer` declares that profile, spec `2.0`, a §3.3 pedagogical mode,
+  and the standalone carrier; `metadata.dimer` declares that profile, spec `2.2`, a §3.3 pedagogical mode,
   `standalone: true` and `generated_from` (repository, revision, module SHA-256, generator);
 - the standalone carrier (ST1–ST8, PAR1–PAR4): no clone, repository install or repository import on the primary
   path; one cell per carried module (`config.py`, `metrics.py`, `modeling.py`, `synthetic.py`, `model.py`,
@@ -21,8 +21,13 @@ CI runs `tools/validate_release_assets.py`, which checks:
   generator's documented rewrites (the two `__file__` uses in `model.py` made working-directory-relative, and the
   removal of package-relative imports); the inline `MANIFEST` and `TOKENIZER_MANIFEST` equal to the committed
   snapshot manifests and the inline `PINS` equal to the `pyproject.toml` runtime pins; the notebook byte-identical
-  (on LF) to `tools/build_notebook.py` output for its recorded revision; the pinned-install cell with its
-  restart-on-stale-import guard; `NOTEBOOK_SOURCE` recorded in exports;
+  (on LF) to `tools/build_notebook.py` output for its recorded revision; the uv isolated-environment
+  install (generator `/2.1`: a pinned `uv` wheel checked by size and SHA-256, managed CPython 3.12.12, the carried
+  hash lock `tutorials/requirements-colab.lock.txt` installed with `--require-hashes --only-binary :all:`, a Linux
+  x86_64 check) and exactly two kernel cells, every carried module and setup cell titled `Infrastructure:` and
+  collapsed; the guarded pip path survives only in the runtime-record cell, for executors that pre-install the pins;
+  `NOTEBOOK_SOURCE` recorded in exports; the guided-layer markers and the stale-text list of the 2026-10-04 review
+  fixes;
 - `MODEL_ID`/`MODEL_REVISION` bound only in the carried module cells (and repeated in the inline manifest, which
   the notebook asserts against the module before fetching), the revision a 40-hex immutable commit, and the same
   identity string in `README.md` and `MODEL_CARD.md` with no stray revisions;
@@ -71,8 +76,10 @@ Before changing the registry status from `Candidate` to `Release-grade`:
 4. verify that Section 1 reports `NOTEBOOK_SOURCE.repository_revision` equal to the revision recorded in
    `metadata.dimer.generated_from` and that the installed core package versions equal the inline `PINS`
    (= `pyproject.toml`): `torch==2.14.0`, `torchvision==0.29.0`, `transformers==4.57.6`, `safetensors==0.8.0`,
-   `numpy==2.5.3`, `pillow==11.3.0`, `scipy==1.18.1`, `huggingface-hub==0.36.2` (an interpreter restart after
-   the install is expected where the runtime's preinstalled torch or numpy differ from the pins);
+   `numpy==2.5.3`, `pillow==11.3.0`, `scipy==1.18.1`, `huggingface-hub==0.36.2`, installed into the isolated
+   environment (Python 3.12.12) and not into the kernel. The run must complete in **one pass with no restart**
+   (`restarted: false`); a run that needs a manual restart is recorded but is not a one-pass `Run all` and not
+   promotion evidence;
 5. verify every default-path stage completes:
    - Section 3: the inline manifests asserted against the module's constants; `stage_missing_files` fetching the
      Space `README.md` and the 1,250,122,522-byte `checkpoint_best_regular.pth` from `nikigoli/countgd` at
@@ -110,7 +117,7 @@ A known-failing default path in the supported runtime blocks release (REL11).
 
 | Notebook | Commit / notebook blob | Date (UTC) | Executor | Outcome |
 |---|---|---|---|---|
-| `countgd_object_counting_colab.ipynb` (`E2E`) | `8d61b94` / `c619a762` | 2026-09-24 | Kaggle Tesla T4 (`kurtvalcorza/dimer-nb2-countgd-object-counting` v1; image `torch 2.10.0+cu128` before the pinned install, `torch 2.14.0+cu130` after; the notebook fetched by commit from GitHub and its Git blob verified before execution; no repository checkout; empty model, weights and photograph caches) | **PASSED** — 16/16 code cells ok (one interpreter restart after the install cell, as designed), 468.7 s |
+| `countgd_object_counting_colab.ipynb` (`E2E`) | `8d61b94` / `c619a762` | 2026-09-24 | Kaggle Tesla T4 (`kurtvalcorza/dimer-nb2-countgd-object-counting` v1; image `torch 2.10.0+cu128` before the pinned install, `torch 2.14.0+cu130` after; the notebook fetched by commit from GitHub and its Git blob verified before execution; no repository checkout; empty model, weights and photograph caches) | **Passed only after a manual restart** — pass 1 stopped at the install cell's stale-module guard (`cuda-bindings` 12.9.4 → 13.4.3, `numpy` 2.0.2 → 2.5.3; 162.5 s), pass 2 ran 16/16 code cells (306.1 s), 468.7 s in total (`restarted_after_install_cell: true`): not a one-pass `Run all`, not promotion evidence |
 
 ## Recorded executions
 
@@ -118,6 +125,7 @@ Each row is one execution: what ran, where, and what was observed. Static checks
 
 | Date (UTC) | Subject | Runtime | Procedure | Observed result | Caveats |
 |---|---|---|---|---|---|
+| 2026-10-04 | `tutorials/countgd_object_counting_colab.ipynb` regenerated for the row-16 review fixes (uv isolated environment; this revision's blob) | Build workstation CPU (`CUDA_VISIBLE_DEVICES=-1`, Windows), Python 3.12.10, `torch 2.14.0`, `transformers 4.57.6`, the pins pre-installed; local harness, **not** the isolated environment (its two kernel cells were skipped and `DIMER_NOTEBOOK_CI_PREINSTALLED=1` set); the pinned checkpoint, its conversion and the FSC-147 cache hard-linked in | the learner cells executed verbatim from the notebook JSON in one namespace, in five processes: (1) default path Sections 4–6 plus the Section 4 refusal checks; (2) an 18-image one-category BYOD zip with `boxes` in a sub-folder through Sections 4–9 (`EPOCHS = 1`); (3) 12 points-only BYOD images (four categories, split 4 / 4 / 4) through Sections 4–6, a one-epoch `pipe.adapt` without validation as a stand-in for a completed Section 7, then Section 7 with `TRAINABLE_LAYERS = 0`, `EPOCHS = 1` and Sections 8–9; (4) the same points zip, Section 6, the stand-in adaptation, then Section 4 and Section 6 again | (1) demo 35 / 51 / 35; synthetic test frozen MAE 7.417, RMSE 9.971, point F1 0.862, box F1 0.453; baselines 10.000 / 14.500; FSC-147 frozen MAE 4.500, RMSE 8.670; refusals: 17 images → "validation gets 3 … one category needs at least 18 images", count-only, missing file, undecodable image, `..` member and an empty path off Colab each refused naming the row or file and the fix; 18 images (flat) accepted, split 9 / 4 / 5; (2) all cells ok, adapter and result JSON written, `…_byod_predictions.json` with 5 images, reload parity 4 / 4 exact (kept epoch 0: the frozen model already counted these scenes exactly); (3) Section 7 printed `reloaded_pinned_base`, epoch 0 validation MAE 11.75 equal to the frozen model's 11.75, 512 trainable parameters in 2 tensors, reload parity 4 / 4 exact; points-only scoring: box `n` 0, point `n` 4; (4) Section 6 after the stand-in adaptation equal to the fresh run (MAE 11.5, RMSE 12.53) | local pre-flight, not clean-runtime evidence; reduced epochs and stand-in adaptations, labelled; the FSC-147 frozen MAE differs from the 2026-09-24 CPU record (4.542) by one object on one photograph (different thread count); the uv download, environment build and hash-locked install were not executed (Linux only) |
 | 2026-09-24 | `tutorials/countgd_object_counting_colab.ipynb` at `8d61b94`, blob `c619a762` | Kaggle Tesla T4 (15,360 MiB), Python 3.12.13, `torch 2.14.0+cu130`, `transformers 4.57.6`, `numpy 2.5.3`, pins installed by the notebook's own install cell | clean container, `Run all` in a fresh interpreter, all form fields at their defaults; the notebook staged the Space README and the 1,250,122,522-byte checkpoint, the tokenizer and the 80 photographs itself, and converted the checkpoint on the runtime | `countgd.safetensors` passed its pinned digest; demo scene 35 / 51 / 35 → 35 / 35 / 35 (text / exemplars / both); synthetic test MAE 7.417 → 1.583, RMSE 9.971 → 4.425, point F1 0.862 → 0.967, box F1 0.453 → 0.546; validation MAE 9.375 → 0.875, kept epoch 2; FSC-147 MAE 4.542 → 3.542, RMSE 8.720 → 8.468; baselines as on the CPU (mean count 10.000 / 16.208, template matcher 14.500 / 34.000); reload parity 4 / 4 identical counts, 0.0 box and score difference; adapter 14,485,144 bytes, 58 tensors; 101 files, 2,191 MB staged | the fine-tune's trajectory differs from the CPU runs (kept epoch 2, not 3) because CUDA kernels are not bit-deterministic; the frozen and baseline numbers match the CPU to the printed precision except the FSC-147 frozen RMSE (8.720 against 8.691); one observation, not an evaluation |
 | 2026-09-24 | the same blob `c619a762` | Build workstation CPU (`CUDA_VISIBLE_DEVICES=-1`), Python 3.12.10, `torch 2.14.0`, `transformers 4.57.6`; local harness, pins pre-installed | fresh Jupyter kernel, all cells in order, the source checkpoint pre-staged by a hard link, everything else staged by the notebook | 1,281.8 s, 0 errors; the values quoted in the notebook, README and card: synthetic test MAE 7.417 → 0.917, RMSE 9.971 → 3.175, point F1 0.862 → 0.981, box F1 0.453 → 0.550; validation MAE 9.375 → 0.750, kept epoch 3 (epoch 4: 2.750); FSC-147 MAE 4.542 → 3.500, RMSE 8.691 → 8.337; demo 35 / 51 / 35 → 35 / 35 / 35; reload parity 4 / 4 exact; adapter SHA-256 `58414f2e…` | a pre-flight, not promotion evidence; bit-identical to the earlier local run below in every reported value |
 | 2026-09-24 | the notebook generated before the template-matcher correction (blob `3efffd1e`, not committed) | Build workstation CPU, as above | as above | 1,210.9 s, 0 errors; model numbers as in the row above; the template matcher reported MAE 26,904.667 on the synthetic scenes and 623.750 on FSC-147 | this run exposed the flat-window defect in the template matcher's correlation, corrected before the committed blob; its baseline values are superseded |
@@ -140,10 +148,12 @@ Arm C's validation MAE turned upward at epoch 4, and the selector kept epoch 3. 
 
 ## Current status
 
-**Release-grade.** The committed notebook blob `c619a762` (at `8d61b94`, generated from `6ec56df`) executed
-top-to-bottom in a clean Kaggle Tesla T4 runtime on 2026-09-24 (16/16 code cells ok, 468.7 s). A later change to
-the carried modules or to the notebook yields a new blob that returns the status to Candidate until its own clean
-run is recorded.
+**Candidate.** The notebook was regenerated on 2026-10-04 for the row-16 review (CGD-M1..M4, CGD-m1..m3: uv
+isolated environment, BYOD rules, frozen-base reload before Sections 5–7, guided layer); no hosted run of the new
+blob is recorded. The earlier blob `c619a762` (at `8d61b94`, generated from `6ec56df`) ran in a Kaggle Tesla T4
+runtime on 2026-09-24 only after a manual restart following the in-kernel install, so it was never a one-pass
+`Run all`. Promotion needs a one-pass clean-runtime `Run all` of the current blob (default path, the Section 10
+activity, and BYOD with one valid and one refused zip).
 
 ## Supplemental open-vocabulary detection and counting workshop — `tutorials/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb`
 

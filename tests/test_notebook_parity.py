@@ -66,7 +66,8 @@ def test_par1_embedded_modules_equal_repository_modules(notebook: dict) -> None:
         drifted = (
             f"embedded module cell for {rel} drifted from the package; regenerate the notebook"
         )
-        assert _source(cell).rstrip("\n") + "\n" == ctx["embedded"][module], drifted
+        stripped = build.strip_carried_title(_source(cell))
+        assert stripped.rstrip("\n") + "\n" == ctx["embedded"][module], drifted
 
 
 REWRITES = TEMPLATE.get(
