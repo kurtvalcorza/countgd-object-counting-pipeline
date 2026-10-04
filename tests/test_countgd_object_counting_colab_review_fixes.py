@@ -413,3 +413,17 @@ def test_the_shared_box_head_is_trainable_by_default_under_its_real_name() -> No
         None, epochs=1, lr=1e-3,
     )
     assert set(head) <= set(report["trainable_names"])
+
+
+def test_workshop_carries_the_current_countgd_package_byte_for_byte() -> None:
+    """CGD-x1 changed src/countgd_pipeline/pipeline.py; the workshop notebook's carried copies and Git-blob pins must follow."""
+    workshop = json.loads((ROOT / "tutorials" / "DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb").read_text(encoding="utf-8"))
+    namespace: dict[str, Any] = {}
+    for cell in workshop["cells"]:
+        if cell.get("id", "").startswith("carried-countgd-pipeline"):
+            exec(compile(_src(cell), cell["id"], "exec"), namespace)
+    carried = namespace["CARRIED_SOURCE"]
+    package = ROOT / "src" / "countgd_pipeline"
+    assert sorted(carried) == sorted(f"countgd_pipeline/{p.name}" for p in package.glob("*.py"))
+    for key, text in carried.items():
+        assert text.encode("utf-8") == (package / key.split("/", 1)[1]).read_bytes(), key
