@@ -26,8 +26,8 @@ GroundingDINO code carries IDEA's Apache-2.0 header.
 exercised on the build workstation's CPU (the unit and model-backed suites, and the tutorial notebook in a fresh
 kernel) and, for the `E2E` tutorial at blob `c619a762`, in a Kaggle Tesla T4 runtime on 2026-09-24 that needed a
 manual restart after the in-kernel install (recorded in `docs/release-verification.md`). The notebook was
-regenerated on 2026-10-04 for its review (uv isolated environment, no restart); it returns to Release-grade only
-after a one-pass clean-runtime execution of the new blob is recorded. Production HTTP serving and DIMER worker packaging remain a separate
+regenerated on 2026-10-04 for its review (uv isolated environment, no restart); its default path passed in one pass on
+a fresh Colab T4 on 2026-10-04, and it returns to Release-grade only after the activity and BYOD runs are recorded. Production HTTP serving and DIMER worker packaging remain a separate
 serving-readiness milestone.
 
 ## Capabilities
@@ -112,7 +112,8 @@ contracts work, not a benchmark or production-fitness evidence. See `tutorials/R
 ## Release status
 
 **Candidate** — the `E2E` notebook was regenerated on 2026-10-04 for its review (uv isolated environment,
-NOTEBOOK_SPEC 2.2, Linux x86_64 only) and no hosted run of the new blob is recorded yet. The earlier blob `c619a762`
+NOTEBOOK_SPEC 2.2, Linux x86_64 only); the new blob passed its default path in one pass, with no restart, on a fresh
+Colab Tesla T4 on 2026-10-04 (Colab CLI sequential execution); the activity and BYOD runs are still pending. The earlier blob `c619a762`
 (committed at `8d61b94`) ran in a Kaggle Tesla T4 runtime on 2026-09-24 only after a manual restart following the
 in-kernel install (16/16 code cells ok on the second pass, 468.7 s in total): not a one-pass `Run all` and not
 promotion evidence; the record is in `docs/release-verification.md` and `STATUS.md`. On the GPU the fine-tune kept epoch 2 rather than epoch 3

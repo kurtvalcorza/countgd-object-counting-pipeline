@@ -1,0 +1,81 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/countgd-object-counting-pipeline-477b185-3e93f0/countgd_object_counting_colab_477b185_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/18 - Infrastructure: install the locked runtime into an isolated environment...
+{'isolated_environment': '/content/dimer_isolated_env', 'isolated_python': '3.12.12', 'kernel_python': '3.13.15', 'locked_packages': 48, 'setup_seconds': 58}
+[colab] Executing cell 2/18 - Infrastructure: route the remaining cells to the isolated environment...
+Every later code cell now runs in /content/dimer_isolated_env/bin/python (pid 3526).
+[colab] Executing cell 3/18 - Infrastructure: record the runtime...
+{'notebook_source': {'repository': 'countgd-object-counting-pipeline', 'repository_revision': '5f394567dbf9a05589cfb8ed07d3c59f1a37a13f', 'embedded_module': 'src/countgd_pipeline/config.py', 'embedded_modules': ['src/countgd_pipeline/config.py', 'src/countgd_pipeline/metrics.py', 'src/countgd_pipeline/modeling.py', 'src/countgd_pipeline/synthetic.py', 'src/countgd_pipeline/model.py', 'src/countgd_pipeline/provenance.py', 'src/countgd_pipeline/samples.py', 'src/countgd_pipeline/pipeline.py'], 'module_sha256': 'e27bfebfaef0231c9fbe6f42952fe2476aa07c8799e5cba8a2f510e70148f88e', 'generator': 'build_notebook.py/2.1', 'notebook_spec': '2.2'}, 'python': '3.12.12', 'torch': '2.14.0+cu130', 'transformers': '4.57.6', 'numpy': '2.5.3', 'cuda': True}
+[colab] Executing cell 4/18 - Infrastructure: carried module `src/countgd_pipeline/config.py` (you may run it without reading it)...
+[colab] Executing cell 5/18 - Infrastructure: carried module `src/countgd_pipeline/metrics.py` (you may run it without reading it)...
+[colab] Executing cell 6/18 - Infrastructure: carried module `src/countgd_pipeline/modeling.py` (you may run it without reading it)...
+[colab] Executing cell 7/18 - Infrastructure: carried module `src/countgd_pipeline/synthetic.py` (you may run it without reading it)...
+[colab] Executing cell 8/18 - Infrastructure: carried module `src/countgd_pipeline/model.py` (you may run it without reading it)...
+[colab] Executing cell 9/18 - Infrastructure: carried module `src/countgd_pipeline/provenance.py` (you may run it without reading it)...
+[colab] Executing cell 10/18 - Infrastructure: carried module `src/countgd_pipeline/samples.py` (you may run it without reading it)...
+[colab] Executing cell 11/18 - Infrastructure: carried module `src/countgd_pipeline/pipeline.py` (you may run it without reading it)...
+[colab] Executing cell 12/18 - countgd_object_counting-25...
+{'model_id': 'nikigoli/countgd', 'revision': '6e82e59569a84ee5c6aafa35d396f2d2bee57be2', 'license': 'MIT', 'files': 2, 'total_bytes': 1250123048}
+{'weights_dir': '/content/weights/countgd', 'fetched': ['README.md', 'checkpoint_best_regular.pth']}
+{'verified_files': 2, 'revision': '6e82e59569a84ee5c6aafa35d396f2d2bee57be2'}
+{'weights_dir': '/content/weights/bert-base-uncased', 'fetched': ['LICENSE', 'README.md', 'config.json', 'tokenizer.json', 'tokenizer_config.json', 'vocab.txt']}
+{'verified_files_bert_base_uncased': 6}
+/content/dimer_isolated_env/lib/python3.12/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/native/TensorShape.cpp:4221.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+{'device': device(type='cuda'), 'source': 'local-snapshot'}
+[colab] Executing cell 13/18 - countgd_object_counting-28...
+{'fsc147': {'photographs': 80, 'bytes': 2732222, 'categories': ['apple', 'cashew nut', 'egg', 'finger food', 'marble', 'stamp', 'strawberry', 'sunglasses'], 'splits': {'train': 40, 'validation': 16, 'test': 24}, 'test_gold_count': {'min': 9, 'max': 99, 'total': 921}, 'test_digest': '66cf304e6a185755...'}}
+{'data_source': "synthetic counting scenes (seeds {'train': 1000, 'validation': 2000, 'test': 3000}, sizes {'train': 24, 'validation': 8, 'test': 12}, 512x384 px)", 'splits': {'train': 24, 'validation': 8, 'test': 12}}
+{'train': {'n': 24, 'labels': 12, 'gold_count': {'min': 7, 'max': 37, 'total': 541}, 'with_points': 24, 'with_boxes': 24, 'digest': 'ba2bb957db386890...'}}
+{'validation': {'n': 8, 'labels': 7, 'gold_count': {'min': 13, 'max': 37, 'total': 232}, 'with_points': 8, 'with_boxes': 8, 'digest': 'cdb6c4d5be4fcf45...'}}
+{'test': {'n': 12, 'labels': 8, 'gold_count': {'min': 8, 'max': 39, 'total': 278}, 'with_points': 12, 'with_boxes': 12, 'digest': '4f96fdb7148f979b...'}}
+{'probe': 'duplicate id', 'rejected': "duplicate id 'same'"}
+{'probe': 'image over the side ceiling', 'rejected': 'records[0]: image sides outside 32..4096 px: (4097, 64)'}
+{'probe': 'count disagrees with its boxes', 'rejected': 'records[0]: count 14 does not equal the number of points 13'}
+{'probe': 'box outside its image', 'rejected': 'records[0]: box 0 [0, 0, 9999, 10] is outside the image or empty (512 x 384)'}
+[colab] Executing cell 14/18 - countgd_object_counting-30...
+{'ceilings': {'MAX_EXEMPLARS': 3, 'MAX_TEXT_CHARS': 64, 'MAX_IMAGE_SIDE': 4096, 'MIN_IMAGE_SIDE': 32, 'MAX_BATCH': 16, 'MAX_COUNT': 2000, 'SHORT_SIDE': 800, 'MAX_SIDE': 1333, 'threshold': 0.23, 'device': 'cuda'}}
+{'scene': 'synth-00001', 'label': 'blue circle', 'gold': 35, 'distractors': {'count': 16, 'label': 'green triangle'}, 'manifest_verdict': 'accepted', 'findings': 1}
+/content/dimer_isolated_env/lib/python3.12/site-packages/transformers/modeling_utils.py:1621: FutureWarning: The `device` argument is deprecated and will be removed in v5 of Transformers.
+  warnings.warn(
+<isolated cell 4>:2928: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+text -> {'count': 35, 'gold': 35, 'max_score': 0.704, 'box_f1': 0.829}
+exemplars -> {'count': 51, 'gold': 35, 'max_score': 0.988, 'box_f1': 0.651}
+both -> {'count': 35, 'gold': 35, 'max_score': 0.987, 'box_f1': 0.714}
+{'checks': {'one_box_and_point_per_count': True, 'scores_above_threshold': True, 'points_inside_the_image': True, 'same_input_same_output': True, 'exemplars_echoed_in_input_pixels': True}, 'seconds': 4.67, 'report': {'count': [35, 51, 35], 'mae': 5.333333333333333, 'exact': 2}, 'verdict': 'sample-sanity'}
+[colab] Executing cell 15/18 - countgd_object_counting-33...
+{'frozen_synthetic_test': {'mae': 7.417, 'rmse': 9.971, 'nae': 0.541, 'exact_fraction': 0.333, 'point_f1': 0.862, 'box_f1': 0.453, 'box_mean_matched_iou': 0.563, 'box_mean_best_iou': 0.5}, 'n': 12, 'verdict': 'small-sample', 'seconds': 21.3}
+{'frozen_fsc147_test': {'mae': 4.542, 'rmse': 8.72, 'nae': 0.117, 'exact_fraction': 0.458, 'point_f1': 0.923}, 'n': 24, 'verdict': 'small-sample'}
+{'synthetic/mean_count': {'mae': 10.0, 'rmse': 11.113, 'nae': 0.628, 'exact_fraction': 0.0}, 'note': 'mean training count (22.5 -> 23 for every image)'}
+{'synthetic/template_matching': {'mae': 14.5, 'rmse': 17.837, 'nae': 0.722, 'exact_fraction': 0.167}, 'note': 'normalised cross-correlation with the mean exemplar crop, peaks >= 0.6 (no learning)'}
+{'fsc147/mean_count': {'mae': 16.208, 'rmse': 21.468, 'nae': 0.716, 'exact_fraction': 0.0}, 'note': 'mean training count (37.5 -> 38 for every image)'}
+{'fsc147/template_matching': {'mae': 34.0, 'rmse': 41.591, 'nae': 1.053, 'exact_fraction': 0.0}, 'note': 'normalised cross-correlation with the mean exemplar crop, peaks >= 0.6 (no learning)'}
+{'definitions': {'mae': "mean over images of |predicted count - gold count|; lower is better (FSC-147's headline metric)", 'rmse': 'square root of the mean squared count error; lower is better, dominated by the largest errors', 'nae': 'mean over images of |predicted - gold| / gold; a scale-free count error, lower is better', 'under_count_fraction': 'fraction of images the system counts fewer objects than the gold count', 'exact_fraction': 'fraction of images counted exactly', 'iou_threshold': 'a predicted box is a true positive when its one-to-one Hungarian partner (maximising IoU) is a gold box with IoU >= this', 'precision': 'fraction of predicted boxes matched to a gold box at IoU >= the threshold', 'recall': 'fraction of gold boxes matched to a predicted box at IoU >= the threshold', 'f1': 'harmonic mean of box precision and recall (micro-averaged over the scored images)', 'mean_matched_iou': 'mean IoU of the true-positive pairs (how tight the boxes are that do match)', 'mean_best_iou': 'mean over gold boxes of the highest IoU any predicted box reaches (0 for a gold box nothing overlaps)'}}
+{'id': 'synth-03000', 'label': 'blue circle', 'gold': 12, 'predicted': 12} {'boxes': {'tp': 4, 'fp': 8, 'fn': 8}}
+{'id': 'synth-03001', 'label': 'red circle', 'gold': 32, 'predicted': 32} {'boxes': {'tp': 5, 'fp': 27, 'fn': 27}}
+{'id': 'synth-03002', 'label': 'yellow triangle', 'gold': 8, 'predicted': 25} {'boxes': {'tp': 6, 'fp': 19, 'fn': 2}}
+{'id': 'synth-03003', 'label': 'green triangle', 'gold': 11, 'predicted': 26} {'boxes': {'tp': 10, 'fp': 16, 'fn': 1}}
+{'id': 'synth-03004', 'label': 'red triangle', 'gold': 18, 'predicted': 29} {'boxes': {'tp': 4, 'fp': 25, 'fn': 14}}
+{'id': 'synth-03005', 'label': 'yellow square', 'gold': 9, 'predicted': 22} {'boxes': {'tp': 5, 'fp': 17, 'fn': 4}}
+[colab] Executing cell 16/18 - countgd_object_counting-36...
+{'epoch': 0, 'train_loss': None, 'val_mae': 9.375, 'val_rmse': 11.869, 'val_localisation_f1': 0.852, 'val_box_f1': 0.613, 'note': 'frozen model'}
+{'epoch': 1, 'train_loss': 42.901, 'val_mae': 6.5, 'val_rmse': 8.5, 'val_localisation_f1': 0.891, 'val_box_f1': 0.648}
+{'epoch': 2, 'train_loss': 47.851, 'val_mae': 0.75, 'val_rmse': 1.5, 'val_localisation_f1': 0.983, 'val_box_f1': 0.728}
+{'epoch': 3, 'train_loss': 34.739, 'val_mae': 1.0, 'val_rmse': 2.236, 'val_localisation_f1': 0.974, 'val_box_f1': 0.714}
+{'epoch': 4, 'train_loss': 34.331, 'val_mae': 0.75, 'val_rmse': 1.581, 'val_localisation_f1': 0.979, 'val_box_f1': 0.695}
+{'trainable_parameters': 3752196, 'total_parameters': 233362816, 'trainable_tensors': 64, 'objective': "CountGD's own: token sigmoid focal loss + L1 box loss after Hungarian matching, final and intermediate decoder outputs", 'best_epoch': 2, 'selection': 'lowest validation MAE (validation split)', 'seconds': 99.6}
+[colab] Executing cell 17/18 - countgd_object_counting-38...
+{'synthetic_test': {'mean_count': {'mae': 10.0, 'rmse': 11.113, 'nae': 0.628, 'exact_fraction': 0.0}, 'template_matching': {'mae': 14.5, 'rmse': 17.837, 'nae': 0.722, 'exact_fraction': 0.167}, 'frozen': {'mae': 7.417, 'rmse': 9.971, 'nae': 0.541, 'exact_fraction': 0.333, 'point_f1': 0.862, 'box_f1': 0.453, 'box_mean_matched_iou': 0.563, 'box_mean_best_iou': 0.5}, 'adapted': {'mae': 1.333, 'rmse': 4.062, 'nae': 0.049, 'exact_fraction': 0.75, 'point_f1': 0.972, 'box_f1': 0.517, 'box_mean_matched_iou': 0.574, 'box_mean_best_iou': 0.506}}}
+{'synthetic_delta_vs_frozen': {'mae': -6.084, 'rmse': -5.909, 'nae': -0.492, 'exact_fraction': 0.417, 'point_f1': 0.11, 'box_f1': 0.064, 'box_mean_matched_iou': 0.011, 'box_mean_best_iou': 0.006}}
+{'validation_mae': {'frozen': 9.375, 'selected_epoch': 2, 'selected': 0.75, 'rescored': 0.75}}
+{'fsc147_test': {'mean_count': {'mae': 16.208, 'rmse': 21.468, 'nae': 0.716, 'exact_fraction': 0.0}, 'template_matching': {'mae': 34.0, 'rmse': 41.591, 'nae': 1.053, 'exact_fraction': 0.0}, 'frozen': {'mae': 4.542, 'rmse': 8.72, 'nae': 0.117, 'exact_fraction': 0.458, 'point_f1': 0.923}, 'adapted': {'mae': 3.458, 'rmse': 8.468, 'nae': 0.075, 'exact_fraction': 0.542, 'point_f1': 0.927}}}
+{'fsc147_delta_vs_frozen': {'mae': -1.084, 'rmse': -0.252, 'nae': -0.042, 'exact_fraction': 0.084, 'point_f1': 0.004}}
+{'report': 'outputs/countgd_object_counting_evaluation_report.json'}
+[colab] Executing cell 18/18 - countgd_object_counting-41...
+{'prompt': 'text', 'gold': 35, 'frozen': 35, 'adapted': 35, 'frozen_box_f1': 0.829, 'adapted_box_f1': 0.829}
+{'prompt': 'exemplars', 'gold': 35, 'frozen': 51, 'adapted': 35, 'frozen_box_f1': 0.651, 'adapted_box_f1': 0.8}
+{'prompt': 'both', 'gold': 35, 'frozen': 35, 'adapted': 35, 'frozen_box_f1': 0.714, 'adapted_box_f1': 0.714}
+{'artifact': 'outputs/countgd_object_counting_adapter', 'format': 'org.valcorza.countgd.adapter.v1', 'tensors': 64, 'bytes': 15016272, 'sha256': 'de4875b1074fb4b8...'}
+{'reload_parity': {'identical_counts': 4, 'max_abs_box_difference': 0.0, 'max_abs_score_difference': 0.0, 'of': 4}, 'reloaded_best_epoch': 2}
+['countgd_object_counting_adapter', 'countgd_object_counting_demo.json', 'countgd_object_counting_demo_adapted_both.png', 'countgd_object_counting_demo_adapted_exemplars.png', 'countgd_object_counting_demo_adapted_text.png', 'countgd_object_counting_demo_frozen_both.png', 'countgd_object_counting_demo_frozen_exemplars.png', 'countgd_object_counting_demo_frozen_text.png', 'countgd_object_counting_evaluation_report.json', 'countgd_object_counting_input_manifest.json', 'countgd_object_counting_result.json', 'countgd_object_counting_train.csv', 'provenance.json']
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/countgd-object-counting-pipeline-477b185-3e93f0/countgd_object_counting_colab_477b185_colab-cli-t4_output.ipynb'...
