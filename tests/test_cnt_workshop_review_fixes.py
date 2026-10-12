@@ -373,8 +373,13 @@ def test_byod_upload_asks_the_kernel_and_refuses_a_bad_upload(byod, files, messa
             "host_upload": lambda path: calls.append(path) or {"files": files},
         }
     )
-    with pytest.raises(byod["BYODError"], match=message):
-        run(byod, "cnt-byod-run")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):  # CNT2-m1: refused, not raised
+        exec(compile(source("cnt-byod-run"), "cnt-byod-run", "exec"), byod)
+    lines = out.getvalue().splitlines()
+    assert len(lines) == 1 and lines[0].startswith("BYOD archive refused: ")
+    assert re.search(message, lines[0])
+    assert byod["byod_report"] is None and byod["byod_refusal"]["refused"] is True
     assert calls == [byod["WORK_ROOT"] / "byod_upload.zip"]
     assert "google.colab" not in source("cnt-byod-run")
 
@@ -746,9 +751,10 @@ def test_principal_results_have_predictions_notes_and_worked_answers():
         assert 'drop(columns=["per_phrase_ap50"])' in source(cell_id)
 
 
-def test_opening_states_downloads_and_unmeasured_duration():
+def test_opening_states_downloads_and_measured_duration():
     opening = source("4fb28422")
-    assert "2.6 GB" in opening and "has not been measured" in opening
+    assert "2.6 GB" in opening and "has not been measured" not in opening
+    assert "279.8 s" in opening and "`4c86f59d`" in opening  # CNT2-m5, labelled per REL13
     assert "Release hardening gate" not in opening and "stages the exact" not in opening
 
 
