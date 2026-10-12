@@ -226,9 +226,32 @@ def test_tuned_versus_fixed_threshold_is_disclosed(cell_id):
     assert "selected on validation" in text or "selected on your validation" in text, cell_id
 
 
-def test_conclusions_are_worded_under_this_protocol():
-    assert "Under this notebook's protocol it was sufficient" in source("d976fb4f")
-    assert "as in these flat synthetic scenes" not in source("d976fb4f")
+def test_wording_exercise_c_makes_sufficiency_conditional():
+    """Wording test: Exercise C ties "sufficient" to a tolerance and the shared query ceiling."""
+    answer = source("d976fb4f")
+    exercise_c = answer[answer.index("### Exercise C") : answer.index("### Exercise D")]
+    assert "as in these flat synthetic scenes" not in exercise_c
+    assert "tolerance" in exercise_c and "point F1" in exercise_c
+    assert "CountGD shares the roughly 900-query" in exercise_c
+    assert "hypotheses" in exercise_c
+
+
+def test_wording_exercise_b_requires_positive_and_negative_scenes():
+    """Wording test: a presence threshold needs both scene kinds, a rule and both error rates."""
+    answer = source("d976fb4f")
+    exercise_b = answer[answer.index("### Exercise B") : answer.index("### Exercise C")]
+    for phrase in (
+        "positive scenes",
+        "negative scenes",
+        "image-level rule",
+        "missed presence",
+        "false presence",
+    ):
+        assert phrase in exercise_b, phrase
+
+
+def test_wording_conclusions_are_worded_under_this_protocol():
+    """Wording test (protocol disclosures of CNT2-M1/M2)."""
     assert "under this protocol" in source("cnt-notice-19")
     assert "only keep boxes labelled with the target phrase, so" not in source("cnt-notice-19")
     assert "protocol differences of section 14" in source("guided-03")
@@ -243,7 +266,11 @@ def test_frozen_record_states_both_protocol_choices():
 
 
 def test_owner_decisions_are_recorded_as_provisional():
-    entry = NB["metadata"]["dimer"]["review_revisions"][-1]
+    entry = next(
+        r
+        for r in NB["metadata"]["dimer"]["review_revisions"]
+        if "findings_disclosed_provisionally" in r
+    )
     assert entry["date"] == "2026-10-13" and entry["computation_changed"] is False
     assert set(entry["findings_disclosed_provisionally"]) == {"CNT2-M1", "CNT2-M2"}
     assert all(
@@ -268,12 +295,131 @@ def test_countgd_box_f1_is_marked_not_comparable():
     assert "comparable between the two detectors only" in source("491b58e6")
 
 
-def test_section_18_no_longer_points_at_a_missing_countgd_picture():
+def test_section_18_promises_a_countgd_picture_only_if_one_is_drawn():
+    """Invariant: s18 asks for CountGD qualitative output only when a figure cell draws CountGD."""
     s18 = source("0f5fa7bd")
-    assert "qualitative scene output" not in s18
-    assert "No cell draws CountGD's predicted points" in s18
     figure_cells = [c["id"] for c in CODE if "savefig" in "".join(c["source"])]
-    assert not any("countgd" in "".join(CELLS[i]["source"]).lower() for i in figure_cells)
+    draws_countgd = any("countgd" in "".join(CELLS[i]["source"]).lower() for i in figure_cells)
+    if not draws_countgd:
+        assert "qualitative scene output" not in s18
+        assert "No cell draws CountGD's predicted points" in s18 and "unverified" in s18
+
+
+# -------------------- Codex follow-up (CX1-CX10)
+
+
+def _generator(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    return run(base_namespace(), "daa99d90", "d5aa425c")
+
+
+def test_generator_limits_stated_in_section_4_hold_for_every_scene(tmp_path, monkeypatch):
+    ns = _generator(tmp_path, monkeypatch)
+    records = ns["train_records"] + ns["validation_records"] + ns["test_records"]
+    for r in records:
+        t_colour, t_shape = r["target_label"].split()
+        d_colour, d_shape = r["distractor_label"].split()
+        assert t_colour != d_colour and t_shape != d_shape, r["id"]  # differ in both attributes
+        assert r["target_count"] <= 40 and r["distractor_count"] <= 20  # far below ~900 queries
+        boxes = r["target_boxes"] + r["distractor_boxes"]
+        # objects are separated: centres more than the two half-sizes plus 3 px apart
+        shapes = [
+            ((b[0] + b[2] - 1) / 2, (b[1] + b[3] - 1) / 2, (b[2] - b[0] - 1) / 2) for b in boxes
+        ]
+        for i, (ax, ay, a_size) in enumerate(shapes):
+            for bx, by, b_size in shapes[i + 1 :]:
+                assert (ax - bx) ** 2 + (ay - by) ** 2 > (a_size + b_size + 3) ** 2, r["id"]
+    text = source("fc40989e")
+    assert "**both** colour and shape" in text and "heavy overlap is not tested" in text
+
+
+def test_splits_are_image_disjoint_but_not_category_disjoint(tmp_path, monkeypatch):
+    ns = _generator(tmp_path, monkeypatch)
+    splits = ("train", "validation", "test")
+    pixels = {s: {r["pixel_sha256"] for r in ns[f"{s}_records"]} for s in splits}
+    assert not pixels["train"] & pixels["test"] and not pixels["validation"] & pixels["test"]
+    labels = {s: {r["target_label"] for r in ns[f"{s}_records"]} for s in ("train", "test")}
+    assert labels["test"] & labels["train"]  # shared concepts: not category-disjoint
+    assert "image-disjoint, not category-disjoint" in source("62e90abd")
+    assert "image-disjoint, not category-disjoint" in source("4fb28422")
+
+
+def test_exemplar_counting_is_disclosed_as_assisted(tmp_path, monkeypatch):
+    ns = _generator(tmp_path, monkeypatch)
+    for r in ns["test_records"]:  # the exemplars are scored targets of the same scene
+        assert all(e in r["target_boxes"] for e in r["exemplars"])
+    assert "assisted counting" in source("1dfd2c62")
+
+
+def test_worked_example_numbers_follow_the_notebook_metrics(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ns = run(base_namespace(), "daa99d90", "d5aa425c", "843fb01b", "83fbdc46", "f5ee4325")
+    before_nms = ns["prf"]([{"tp": 2, "fp": 2, "fn": 1}])
+    after_nms = ns["prf"]([{"tp": 2, "fp": 1, "fn": 1}])
+    assert round(before_nms["precision"], 2) == 0.50 and round(before_nms["recall"], 2) == 0.67
+    assert round(before_nms["f1"], 2) == 0.57
+    assert round(after_nms["precision"], 2) == round(after_nms["recall"], 2) == 0.67
+    example = source("62e90abd")
+    assert "0.50" in example and "≈ 0.67" in example and "≈ 0.57" in example and "**+1**" in example
+    assert "have seen basic object detection" not in source("guided-00")
+
+
+def test_counting_tables_add_signed_error_and_point_precision_recall_without_dropping_columns():
+    """Invariant: existing columns stay; new display columns come from values already computed."""
+    for cell_id in ("ec46acb1", "92c772c5", "b9b5ef65"):
+        code = source(cell_id)
+        for existing in ('"mae"', '"rmse"', '"nae"', '"point_f1"', '"box_f1"'):
+            assert existing in code, (cell_id, existing)
+        for added in ('"mean_signed_error"', '"point_precision"', '"point_recall"'):
+            assert added in code, (cell_id, added)
+        assert ".evaluate(" not in code.split('"point_recall"')[-1]  # no new model call after them
+    summary = source("491b58e6")
+    assert '"test_point_f1":row.get("point_f1")' in summary
+    assert '"test_box_f1":row.get("box_f1")' in summary
+
+
+def test_export_records_dependency_and_evaluator_identity():
+    export = source("43953ffd")
+    for key in (
+        '"notebook_identity"',
+        '"dependency_lock_sha256"',
+        '"cell_runner_sha256"',
+        '"evaluation_identity"',
+        '"metrics_git_blob":COUNTGD_SOURCE["metrics.py"][0]',
+        '"point_radius"',
+        '"point_assignment"',
+        '"box_assignment"',
+    ):
+        assert key in export, key
+    # the lock the export hashes is the one section 2 installs from
+    assert 'LOCK_PATH = RUNNER_ROOT / "requirements.lock.txt"' in source("ef509873")
+
+
+def test_section_11_names_the_carrier_commit_the_staging_cell_pins():
+    tree = ast.parse(source("083028a5"))
+    commit = next(
+        ast.literal_eval(n.value)
+        for n in tree.body
+        if isinstance(n, ast.Assign)
+        and getattr(n.targets[0], "id", None) == "COUNTGD_CARRIER_COMMIT"
+    )
+    assert f"@{commit[:7]}`" in source("005fe167")
+    assert NB["metadata"]["dimer"]["carried_sources"]["countgd_pipeline"]["commit"] == commit
+
+
+def test_wording_density_and_distractor_tables_are_associations():
+    """Wording test: section 19 reads as hypothesis-generating, not causal."""
+    notice = source("cnt-notice-19")
+    assert "is limited by crowding" not in notice
+    assert "together mean the system is counting" not in notice
+    assert "**associated**" in notice and "**consistent with**" in notice
+    assert "unverified" in notice and "colour and shape" in notice
+    assert "not diagnoses" in source("3e058b9e")
+    assert "never learned" not in source("cnt-notice-12") + source("0f5fa7bd")
+    assert "is adding extra objects" not in source("cnt-notice-12")
+    assert "compensating category/localization error" not in source("ebafe76d")
+    assert "no bound" in source("82efebb0")
+    assert "small point-F1 differences" not in source("82efebb0")
 
 
 def test_export_names_the_current_workshop_revision():
