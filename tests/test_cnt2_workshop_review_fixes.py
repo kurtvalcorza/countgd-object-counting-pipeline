@@ -633,7 +633,62 @@ def test_target_only_detector_rows_are_a_labelled_diagnostic():
 
 
 def test_owner_decisions_are_recorded_and_none_pending():
-    entry = NB["metadata"]["dimer"]["review_revisions"][-1]
+    entry = next(r for r in NB["metadata"]["dimer"]["review_revisions"] if "decisions" in r)
     assert set(entry["decisions"]) == {"CNT2-M1", "CNT2-M2", "CNT2-CX1"}
     assert entry["computation_changed"] is True and entry["carried_modules_changed"] is False
     assert entry["workshop_revision"] == NB["metadata"]["workshop_revision"]
+
+
+# -------------------- CNT2-m4 CountGD point panel
+
+
+def test_countgd_point_panel_is_display_only_on_a_fixed_scene():
+    order = [c["id"] for c in NB["cells"]]
+    assert order.index("b9b5ef65") < order.index("cnt-countgd-points") < order.index("3e058b9e")
+    panel = source("cnt-countgd-points")
+    assert "COUNTGD_GALLERY_INDEX=0" in panel  # declared before any result, not chosen from them
+    assert (
+        "max_eligible_matching(" in panel and "match_radius(" in panel
+    )  # the evaluator's assignment
+    assert 'savefig(OUTPUT_ROOT/"figures"/' in panel
+    for forbidden in (
+        ".evaluate(",
+        "countgd_sweep(",
+        "_forward(",
+        ".predict(",
+        "countgd_test_results[",
+    ):
+        if forbidden == "countgd_test_results[":
+            assert 'countgd_test_results[f"frozen_{mode}"]' in panel
+            continue
+        assert forbidden not in panel, forbidden
+    assert "No CountGD picture" not in source("0f5fa7bd")
+
+
+def test_countgd_point_panel_colours_points_by_the_evaluator(tmp_path, monkeypatch):
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    monkeypatch.chdir(tmp_path)
+    ns = run(base_namespace(), "daa99d90", "d5aa425c", "843fb01b", "83fbdc46", "f5ee4325")
+    ns["plt"] = plt
+    ns["COUNTGD_MODES"] = (
+        ("text", True, False),
+        ("exemplar", False, True),
+        ("text+exemplar", True, True),
+    )
+    scene = ns["test_records"][0]
+    stray = [[1.0, 1.0]]  # far from every target
+    preds = {"points": scene["target_points"][:2] + stray}
+    ns["countgd_test_results"] = {
+        f"frozen_{mode}": {"threshold": 0.3, "predictions": [preds] * len(ns["test_records"])}
+        for mode, _, _ in ns["COUNTGD_MODES"]
+    }
+    run(ns, "cnt-countgd-points")
+    assert (Path("outputs") / "figures" / "countgd_points_fixed_test_scene.png").is_file()
+    labels = [t.get_text() for ax in plt.gcf().axes for t in ax.get_legend().get_texts()]
+    assert "matched to a target (2)" in labels and "unmatched (1)" in labels
+    plt.close("all")
