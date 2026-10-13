@@ -215,3 +215,33 @@ Executed notebook: [`execution-evidence/2026-10-04/DIMER_Open_Vocabulary_Detecti
 - **Boundary:** saved outputs inspected; the exported bundle was not downloaded. Activity, BYOD with valid and rejected archives (REL12) and `FULL` with both reload parities remain open.
 
 Status stays **Candidate**; `metadata.dimer.clean_runtime_evidence` stays `pending` as authored.
+
+### Owner decisions on PR #8 (revision 0.4.0-candidate) — not yet executed on a hosted runtime
+
+Notebook blob `e0f3e2e4` → `c58c9215` (workshop revision 0.3.0-candidate → 0.4.0-candidate). The maintainer
+decided the three open owner decisions of the 2026-10-12 review round (PR #8):
+
+- **CNT2-M1 = C:** each detector is also queried with the target phrase alone. Those counts are reported as labelled
+  `_as_counter_target_only` diagnostic rows (threshold selected on validation with the same rule) next to the
+  unchanged two-phrase primary rows.
+- **CNT2-M2 = C:** CountGD's counting threshold is selected per prompt mode on validation from
+  `COUNTGD_THRESHOLD_GRID` with the detectors' rule (lowest MAE, then RMSE, then the higher threshold) and frozen
+  before test. Those rows are primary; the 0.23 rows remain, labelled `upstream default 0.23`. CountGD is still run
+  once per scene and mode: every grid threshold is read from that one forward pass.
+- **CNT2-CX1 = A:** one notebook evaluator scores every counting system (mean-count, template matcher, detector
+  counters, CountGD). It uses one radius rule, max(4 px, half the mean gold target box side), and a one-to-one matcher
+  that maximises the number of eligible pairs first and uses distance or 1 − IoU only to break ties. Every point and
+  box F1 is recomputed with it. The carried `countgd_pipeline` modules are unchanged (same Git-blob pins); the
+  notebook reads CountGD's predictions with the carried `evaluate` loop and keeps them.
+
+**New numbers are expected.** The default-path printed results will differ from the earlier runs in three ways:
+point/box F1 for every counting system; the primary CountGD rows (selected thresholds); and the added rows and columns.
+The two-phrase detector counts, detection AP tables and the 0.23 CountGD counts are computed as before.
+
+**Prior hosted evidence covers the previous design only.** The 2026-09-26 browser run (blob `6323cbdf`) and the Colab
+CLI T4 runs of blobs `026c2da7` (2026-10-03) and `4c86f59d` (2026-10-04, 279.8 s) executed the earlier evaluators and
+the fixed-threshold CountGD comparison; none of them is evidence for this revision. A fresh T4 run of this revision is
+required. The expected change in wall time is small (estimated, not measured): about 40 extra detector forward passes
+for the target-only rows, and no extra CountGD forward passes.
+
+Status stays **Candidate**; `metadata.dimer.clean_runtime_evidence` stays `pending`.

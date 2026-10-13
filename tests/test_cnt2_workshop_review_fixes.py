@@ -204,8 +204,8 @@ PROTOCOL_CELLS = (
 
 
 def test_section_14_describes_the_two_phrase_query():
-    s14 = section("# 14.")
-    assert "target phrase only" not in s14
+    s14 = source("0fbbd3fb")
+    assert "```text\ntarget phrase only" not in s14  # the old diagram described the wrong query
     assert "[target_label, distractor_label]" in s14 and "best phrase is the target" in s14
     # the query the diagram describes is the one the code sends
     for call_cell in ("747c9153", "a147fce8"):
@@ -219,11 +219,13 @@ def test_distractor_name_asymmetry_is_disclosed_where_the_comparison_is_read(cel
     assert "target name only" in text or "never receive" in text or "never given" in text, cell_id
 
 
-@pytest.mark.parametrize("cell_id", ("4fb28422", "0fbbd3fb", "0f5fa7bd", "305eacac", "d976fb4f"))
-def test_tuned_versus_fixed_threshold_is_disclosed(cell_id):
+@pytest.mark.parametrize("cell_id", ("4fb28422", "1dfd2c62", "0f5fa7bd", "305eacac"))
+def test_wording_countgd_thresholds_selected_with_upstream_default_labelled(cell_id):
+    """Wording test (CNT2-M2 = C)."""
     text = source(cell_id)
-    assert "fixed upstream threshold of 0.23" in text, cell_id
-    assert "selected on validation" in text or "selected on your validation" in text, cell_id
+    assert "fixed upstream threshold of 0.23" not in text, cell_id
+    assert re.search(r"selected on (?:validation|these validation|your validation)", text), cell_id
+    assert re.search(r"upstream[ -]default", text), cell_id
 
 
 def test_wording_exercise_c_makes_sufficiency_conditional():
@@ -254,12 +256,15 @@ def test_wording_conclusions_are_worded_under_this_protocol():
     """Wording test (protocol disclosures of CNT2-M1/M2)."""
     assert "under this protocol" in source("cnt-notice-19")
     assert "only keep boxes labelled with the target phrase, so" not in source("cnt-notice-19")
-    assert "protocol differences of section 14" in source("guided-03")
+    assert "protocol difference of section 14" in source("guided-03")
 
 
 def test_frozen_record_states_both_protocol_choices():
     freeze = source("918e4e83")
-    assert '"threshold_selection":"fixed upstream value; not selected on validation"' in freeze
+    assert '"selected_thresholds":countgd_selected_thresholds' in freeze
+    assert '"upstream_default_threshold":COUNTGD_THRESHOLD' in freeze
+    assert '"detector_as_counter_target_only_thresholds":counter_thresholds_target_only' in freeze
+    assert '"counting_evaluation":MATCHING_RULE' in freeze
     assert '"text_prompt":"target name only"' in freeze
     assert '"detector_as_counter_protocol":{' in freeze
     compile(freeze, "918e4e83", "exec")
@@ -281,11 +286,11 @@ def test_owner_decisions_are_recorded_as_provisional():
 # -------------------- CNT2-m2 .. m6
 
 
-def test_section_6_names_which_scorer_scores_which_system():
+def test_wording_section_6_describes_one_evaluator():
+    """Wording test (CNT2-CX1 = A)."""
     s6 = source("82efebb0")
-    assert "common counting evaluator" not in s6
-    assert "`countgd_pipeline.metrics`" in s6 and "template matcher" in s6
-    assert "point matchers differ" in s6
+    assert "One evaluator" in s6 and "maximises the number of eligible pairs" in s6
+    assert "Two scorers" not in s6 and "no longer used for these numbers" in s6
 
 
 def test_countgd_box_f1_is_marked_not_comparable():
@@ -385,10 +390,9 @@ def test_export_records_dependency_and_evaluator_identity():
         '"dependency_lock_sha256"',
         '"cell_runner_sha256"',
         '"evaluation_identity"',
-        '"metrics_git_blob":COUNTGD_SOURCE["metrics.py"][0]',
-        '"point_radius"',
-        '"point_assignment"',
-        '"box_assignment"',
+        "**MATCHING_RULE",
+        '"countgd_threshold_selection"',
+        '"detector_as_counter_target_only_thresholds"',
     ):
         assert key in export, key
     # the lock the export hashes is the one section 2 installs from
@@ -418,14 +422,13 @@ def test_wording_density_and_distractor_tables_are_associations():
     assert "never learned" not in source("cnt-notice-12") + source("0f5fa7bd")
     assert "is adding extra objects" not in source("cnt-notice-12")
     assert "compensating category/localization error" not in source("ebafe76d")
-    assert "no bound" in source("82efebb0")
     assert "small point-F1 differences" not in source("82efebb0")
 
 
 def test_export_names_the_current_workshop_revision():
     export = source("43953ffd")
     exported = re.search(r'"workshop_revision":"([^"]+)"', export).group(1)
-    assert exported == NB["metadata"]["workshop_revision"] == "0.3.0-candidate"
+    assert exported == NB["metadata"]["workshop_revision"] == "0.4.0-candidate"
     latest = [
         r["workshop_revision"]
         for r in NB["metadata"]["dimer"]["review_revisions"]
@@ -446,3 +449,191 @@ def test_use_notice_precedes_the_first_code_cell():
     ]
     assert notices == [0]
     assert "[!WARNING]" not in "".join(NB["cells"][0]["source"])
+
+
+# -------------------- owner decisions: CNT2-M1 = C, CNT2-M2 = C, CNT2-CX1 = A
+
+
+@pytest.fixture
+def evaluator(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    return run(base_namespace(), "daa99d90", "d5aa425c", "843fb01b", "83fbdc46", "f5ee4325")
+
+
+def _min_cost_tp(distance, radius):
+    """The former notebook matcher: Hungarian on raw distance, then the radius."""
+    from scipy.optimize import linear_sum_assignment
+
+    rows, cols = linear_sum_assignment(distance)
+    return int(sum(distance[r, c] <= radius for r, c in zip(rows, cols, strict=True)))
+
+
+def _greedy_tp(distance, radius):
+    """Greedy nearest-first matching."""
+    pairs = sorted(
+        (distance[i, j], i, j) for i in range(distance.shape[0]) for j in range(distance.shape[1])
+    )
+    used_p, used_g, tp = set(), set(), 0
+    for d, i, j in pairs:
+        if d <= radius and i not in used_p and j not in used_g:
+            used_p.add(i)
+            used_g.add(j)
+            tp += 1
+    return tp
+
+
+def _distances(pred, gold):
+    import numpy as np
+
+    p, g = np.asarray(pred, float), np.asarray(gold, float)
+    return np.sqrt(((p[:, None, :] - g[None, :, :]) ** 2).sum(axis=2))
+
+
+def test_unified_matcher_keeps_matches_the_min_cost_matcher_loses(evaluator):
+    pred, gold = [[9, 0], [100, 0]], [[0, 0], [10, 0]]
+    assert _min_cost_tp(_distances(pred, gold), 5.0) == 0
+    assert evaluator["match_points"](pred, gold, 5.0) == {"tp": 1, "fp": 1, "fn": 1}
+
+
+def test_unified_matcher_keeps_matches_the_greedy_matcher_loses(evaluator):
+    pred, gold = [[3.9, 0], [-4, 0]], [[0, 0], [8, 0]]
+    assert _greedy_tp(_distances(pred, gold), 5.0) == 1
+    assert evaluator["match_points"](pred, gold, 5.0)["tp"] == 2
+
+
+def test_unified_box_matcher_keeps_matches_maximum_total_iou_loses(evaluator):
+    import numpy as np
+    from scipy.optimize import linear_sum_assignment
+
+    iou = np.asarray([[0.95, 0.50], [0.55, 0.40]])
+    rows, cols = linear_sum_assignment(
+        -iou
+    )  # the former box matcher: maximum total IoU, then the threshold
+    assert int(sum(iou[r, c] >= 0.5 for r, c in zip(rows, cols, strict=True))) == 1
+    assert len(evaluator["max_eligible_matching"](1 - iou, iou >= 0.5)) == 2
+    boxes = [[0, 0, 10, 10], [20, 0, 30, 10]]
+    assert evaluator["match_boxes"](boxes, boxes)["tp"] == 2
+
+
+def test_unified_matcher_uses_cost_only_to_break_ties(evaluator):
+    import numpy as np
+
+    d = _distances([[1, 0], [9, 0]], [[0, 0], [10, 0]])
+    assert sorted(evaluator["max_eligible_matching"](d, d <= 20)) == [(0, 0), (1, 1)]
+    assert evaluator["max_eligible_matching"](np.zeros((0, 0)), np.zeros((0, 0), bool)) == []
+
+
+def test_unified_matcher_finds_a_maximum_matching_on_random_cases(evaluator):
+    import itertools
+
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    for _ in range(300):
+        n, m = (int(v) for v in rng.integers(1, 5, size=2))
+        cost = rng.random((n, m))
+        eligible = rng.random((n, m)) < 0.5
+        best = 0
+        for perm in itertools.permutations(range(m), min(n, m)) if n <= m else ():
+            best = max(best, sum(bool(eligible[i, j]) for i, j in enumerate(perm)))
+        for perm in itertools.permutations(range(n), min(n, m)) if n > m else ():
+            best = max(best, sum(bool(eligible[i, j]) for j, i in enumerate(perm)))
+        pairs = evaluator["max_eligible_matching"](cost, eligible)
+        assert len(pairs) == best
+        assert len({i for i, _ in pairs}) == len(pairs) == len({j for _, j in pairs})
+        assert all(eligible[i, j] for i, j in pairs)
+
+
+def test_one_radius_rule_from_gold_target_boxes(evaluator):
+    record = {"target_boxes": [[0, 0, 10, 10], [0, 0, 20, 20]]}
+    assert evaluator["match_radius"](record) == 7.5
+    assert evaluator["match_radius"]({"target_boxes": [[0, 0, 2, 2]]}) == 4.0
+
+
+def test_every_counting_system_is_scored_by_the_notebook_evaluator():
+    for cell in CODE:
+        cid = cell["id"]
+        if cid.startswith("carried-") or cid == "cnt-uv-carrier":
+            continue
+        text = "".join(cell["source"])
+        assert "template_matching_baseline" not in text, cid
+        if cid not in ("51ba74ee",):  # FULL's FSC-147 regression reports count error only
+            assert ".evaluate(" not in text, cid
+    for cid in ("2c01887d", "1160dede", "b9b5ef65", "cnt-byod-helpers"):
+        assert "evaluate_count_predictions(" in source(cid), cid
+    assert "countgd_sweep(" in source("92c772c5") and "countgd_sweep(" in source("ec46acb1")
+
+
+def test_countgd_loop_is_the_carried_evaluate_loop():
+    """The notebook reads CountGD as the pinned CountGDPipeline.evaluate does, keeping output."""
+    carried = source("carried-countgd-pipeline-pipeline")
+    for line in (
+        'exemplars = record["exemplars"] if use_exemplars else []',
+        'text = record["label"] if use_text else None',
+        'pixels, scale = self._prepare(record["image"])',
+        "out = self._forward(pixels, exemplars, scale, text)",
+        'entry = self._read(out, ratio, record["image"].size)',
+    ):
+        assert line in carried, line
+    helper = source("ec46acb1")
+    for line in (
+        'exemplars=record["exemplars"] if use_exemplars else []',
+        'text=record["label"] if use_text else None',
+        'pixels,scale=model._prepare(record["image"])',
+        "raw=model._forward(pixels,exemplars,scale,text)",
+        'entry=model._read(raw,ratios[t],record["image"].size)',
+        "checked=validate_dataset(records,min_records=1,max_records=MAX_EVAL_RECORDS)",
+    ):
+        assert line in helper, line
+
+
+def test_countgd_thresholds_are_selected_on_validation_and_frozen_before_test():
+    order = [c["id"] for c in NB["cells"]]
+    assert order.index("ec46acb1") < order.index("918e4e83") < order.index("92c772c5")
+    assert order.index("d0dff168") < order.index("918e4e83")  # the adapted model's selection too
+    selection = source("ec46acb1")
+    assert (
+        "countgd_sweep(countgd,countgd_validation,validation_records,COUNTGD_THRESHOLD_GRID)"
+        in selection
+    )
+    assert "test" not in selection.split("countgd_selected_thresholds=")[1].split("\n")[0]
+    test_cell = source("92c772c5")
+    assert 'add_countgd_test_rows(frozen_countgd,"frozen",countgd_selected_thresholds)' in test_cell
+    assert '"role":"primary (validation-selected threshold)"' in test_cell
+    assert '"role":f"upstream default {COUNTGD_THRESHOLD}"' in test_cell
+    assert "COUNTGD_THRESHOLD" in source("daa99d90") and "0.23" in source("daa99d90")
+
+
+def test_countgd_selection_uses_the_detectors_rule(evaluator):
+    from test_cnt_workshop_review_fixes import countgd_functions
+
+    ns = countgd_functions(evaluator)
+    grid = ns["COUNTGD_THRESHOLD_GRID"]
+    sweep = {
+        (mode, t): {"mae": abs(t - 0.30) if mode == "text" else 1.0, "rmse": 1.0}
+        for mode, _, _ in ns["COUNTGD_MODES"]
+        for t in grid
+    }
+    selected = ns["select_countgd_thresholds"](sweep)
+    assert selected["text"] == 0.30  # lowest MAE
+    assert selected["exemplar"] == max(grid)  # all tied: the higher threshold
+    assert ns["COUNTGD_THRESHOLD"] in grid
+
+
+def test_target_only_detector_rows_are_a_labelled_diagnostic():
+    for cell_id, records in (("747c9153", "validation_records"), ("a147fce8", "test_records")):
+        text = source(cell_id)
+        assert (
+            text.count('[r["target_label"],r["distractor_label"]]') == 2
+        )  # primary rows unchanged
+        assert text.count('.predict(r["image"],[r["target_label"]]) for r in ' + records + "]") == 2
+    assert 'counter_thresholds_target_only[model]=best["threshold"]' in source("1160dede")
+    assert '"diagnostic (target phrase only)"' in source("b9b5ef65")
+    assert '"diagnostic (target phrase only)"' in source("cnt-byod-helpers")
+
+
+def test_owner_decisions_are_recorded_and_none_pending():
+    entry = NB["metadata"]["dimer"]["review_revisions"][-1]
+    assert set(entry["decisions"]) == {"CNT2-M1", "CNT2-M2", "CNT2-CX1"}
+    assert entry["computation_changed"] is True and entry["carried_modules_changed"] is False
+    assert entry["workshop_revision"] == NB["metadata"]["workshop_revision"]

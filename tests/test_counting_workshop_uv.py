@@ -191,7 +191,7 @@ def test_kernel_cells_import_only_the_standard_library_and_ipython():
 
 
 def test_revision_recorded():
-    assert NB["metadata"]["workshop_revision"] == "0.3.0-candidate"
+    assert NB["metadata"]["workshop_revision"] == "0.4.0-candidate"
     entry = next(
         r
         for r in NB["metadata"]["dimer"]["review_revisions"]

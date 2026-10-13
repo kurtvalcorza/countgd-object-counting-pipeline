@@ -402,22 +402,55 @@ class StandInDetector:
 
 
 class StandInCountGD:
-    def evaluate(self, records, *, threshold=0.23, use_text=True, use_exemplars=True):
-        rows = [
-            {"id": r["id"], "gold": r["count"], "predicted": r["count"] + (0 if use_text else 2)}
-            for r in records
-        ]
-        err = np.asarray([x["predicted"] - x["gold"] for x in rows], float)
+    """The hooks the notebook's CountGD loop calls (_prepare, _forward, _read): it predicts every
+    gold target, plus two copies of the first one without text. Records are found by pixel bytes."""
+
+    def __init__(self, records_getter):
+        self.records_getter = records_getter
+        self.forwards = 0
+
+    def _prepare(self, image):
+        return image, 1.0
+
+    def _forward(self, pixels, exemplars, scale, text):
+        self.forwards += 1
+        lookup = {r["image"].tobytes(): r for r in self.records_getter()}
+        return {"record": lookup[pixels.tobytes()], "text": text}
+
+    def _read(self, raw, threshold, size):
+        record = raw["record"]
+        boxes = list(record["target_boxes"]) + (
+            [] if raw["text"] else [record["target_boxes"][0]] * 2
+        )
         return {
-            "mae": float(np.abs(err).mean()),
-            "rmse": float(np.sqrt((err**2).mean())),
-            "nae": 0.0,
-            "exact_fraction": float((err == 0).mean()),
-            "localisation": {"f1": 1.0},
-            "boxes": {"f1": 1.0},
-            "per_image": rows,
-            "adapted": False,
+            "count": len(boxes),
+            "points": [[(b[0] + b[2]) / 2, (b[1] + b[3]) / 2] for b in boxes],
+            "boxes": boxes,
         }
+
+
+def countgd_functions(ns):
+    """The notebook's CountGD helpers (section 12) and the evaluator (section 6) in `ns`."""
+    ns["COUNTGD_MODES"] = (
+        ("text", True, False),
+        ("exemplar", False, True),
+        ("text+exemplar", True, True),
+    )
+    exec(
+        compile(
+            functions(
+                "ec46acb1",
+                "as_countgd_record",
+                "countgd_scene_predictions",
+                "countgd_sweep",
+                "select_countgd_thresholds",
+            ),
+            "ec46acb1",
+            "exec",
+        ),
+        ns,
+    )
+    return ns
 
 
 def test_byod_branch_reaches_detection_counting_and_export_with_stand_ins(byod, tmp_path):
@@ -427,20 +460,17 @@ def test_byod_branch_reaches_detection_counting_and_export_with_stand_ins(byod, 
     path = _zip(tmp_path / "ok.zip", *_valid_tables(), _images(6))
     ns = byod
     exec(compile(functions("1160dede", "detector_count_predictions"), "1160dede", "exec"), ns)
-    exec(compile(functions("ec46acb1", "as_countgd_record"), "ec46acb1", "exec"), ns)
     holder: dict = {}
+    countgd_functions(ns)
     ns.update(
         {
             "pd": pd,
             "USE_BYOD": True,
             "BYOD_ZIP_PATH": str(path),
-            "frozen_countgd": StandInCountGD(),
-            "template_matching_baseline": lambda records: {
-                "mae": 1.0,
-                "rmse": 1.0,
-                "nae": 0.1,
-                "exact_fraction": 0.0,
-            },
+            "frozen_countgd": StandInCountGD(lambda: holder["records"]),
+            "template_scene_predictions": lambda records: [
+                {"count": r["count"], "points": r["points"]} for r in records
+            ],
             "GroundingFrozen": lambda: StandInDetector(
                 holder["records"], ns["detection_reference"]
             ),
@@ -463,11 +493,29 @@ def test_byod_branch_reaches_detection_counting_and_export_with_stand_ins(byod, 
         "template_matcher",
         "grounding_dino_as_counter",
         "owlv2_as_counter",
+        "grounding_dino_as_counter_target_only",
+        "owlv2_as_counter_target_only",
         "countgd_frozen_text",
+        "countgd_frozen_text_upstream_default",
         "countgd_frozen_exemplar",
+        "countgd_frozen_exemplar_upstream_default",
         "countgd_frozen_text+exemplar",
+        "countgd_frozen_text+exemplar_upstream_default",
     ]
     assert report["detector_count_thresholds"] == {"grounding_dino": 0.4, "owlv2": 0.4}
+    assert report["detector_count_thresholds_target_only"] == {"grounding_dino": 0.4, "owlv2": 0.4}
+    # every mode is constant in the threshold here, so the rule's last tie-break picks the highest
+    assert report["countgd_selected_thresholds"] == {
+        "text": 0.4,
+        "exemplar": 0.4,
+        "text+exemplar": 0.4,
+    }
+    rows = {row["system"]: row for row in report["counting_test"]}
+    assert (
+        rows["countgd_frozen_text"]["point_f1"] == 1.0 and rows["countgd_frozen_text"]["mae"] == 0.0
+    )
+    assert rows["countgd_frozen_exemplar"]["mae"] == 2.0
+    assert pd.isna(rows["template_matcher"]["box_f1"])  # points only
     assert {row["model"] for row in report["detection_test"]} == {"grounding_dino", "owlv2"}
     out = Path("outputs") / "byod"
     assert sorted(p.name for p in out.iterdir()) == [
@@ -507,33 +555,18 @@ def test_compare_detections_passes_equal_outputs_and_fails_drift():
 
 
 def _detection_and_counting_state(ns):
-    """Stand-in detector predictions and CountGD results over the real test scenes."""
-    exec(compile(functions("1160dede", "detector_count_predictions"), "1160dede", "exec"), ns)
+    """Stand-in per-scene predictions of every counting row over the real test scenes."""
     records = ns["test_records"]
-    perfect = [
-        [{"box": b, "label": r["target_label"], "score": 0.9} for b in r["target_boxes"]]
-        for r in records
-    ]
-    ns["test_detection"] = {"grounding_dino": perfect, "owlv2": perfect}
-    ns["counter_thresholds"] = {"grounding_dino": 0.1, "owlv2": 0.3}
-    ns["detector_counter_test"] = {"grounding_dino": {}, "owlv2": {}}
 
-    def result(extra):
-        return {
-            "per_image": [
-                {
-                    "id": r["id"],
-                    "gold": r["target_count"],
-                    "predicted": r["target_count"] + extra(r),
-                }
-                for r in records
-            ]
-        }
+    def counts(extra):
+        return [{"count": r["target_count"] + extra(r)} for r in records]
 
-    ns["countgd_test_results"] = {
-        "frozen_text": result(lambda r: 0),
-        "frozen_exemplar": result(lambda r: r["distractor_count"]),
-        "frozen_text+exemplar": result(lambda r: 1),
+    ns["counting_test_predictions"] = {
+        "grounding_dino_as_counter": counts(lambda r: 0),
+        "owlv2_as_counter": counts(lambda r: 0),
+        "countgd_frozen_text": counts(lambda r: 0),
+        "countgd_frozen_exemplar": counts(lambda r: r["distractor_count"]),
+        "countgd_frozen_text+exemplar": counts(lambda r: 1),
     }
     return ns
 
@@ -586,34 +619,29 @@ def test_activity_threshold_must_come_from_the_grid(tmp_path, monkeypatch):
 
 def test_activity_uses_validation_only_and_leaves_the_freeze_untouched(scenes):
     pd = pytest.importorskip("pandas")
-    ns = scenes
+    ns = countgd_functions(scenes)
     exec(compile(functions("a044e35f", "sha256_file"), "a044e35f", "exec"), ns)
-    exec(compile(functions("ec46acb1", "as_countgd_record"), "ec46acb1", "exec"), ns)
     ns["countgd_validation"] = [ns["as_countgd_record"](r) for r in ns["validation_records"]]
-    seen = []
-
-    class Recorder(StandInCountGD):
-        def evaluate(self, records, **kwargs):
-            seen.append({r["id"] for r in records})
-            return super().evaluate(records, **kwargs)
-
-    model = Recorder()
+    model = StandInCountGD(lambda: ns["validation_records"])
+    ns["countgd_validation_sweep"] = ns["countgd_sweep"](
+        model, ns["countgd_validation"], ns["validation_records"], ns["COUNTGD_THRESHOLD_GRID"]
+    )
+    ns["countgd_selected_thresholds"] = ns["select_countgd_thresholds"](
+        ns["countgd_validation_sweep"]
+    )
+    forwards = model.forwards
+    assert forwards == 3 * len(
+        ns["validation_records"]
+    )  # one pass per scene and mode, every threshold
     ns.update({"pd": pd, "frozen_countgd": model, "RUN_ACTIVITY": True})
-    ns["countgd_validation_results"] = {
-        name: model.evaluate(ns["countgd_validation"], use_text=t, use_exemplars=e)
-        for name, t, e in (
-            ("text", True, False),
-            ("exemplar", False, True),
-            ("text+exemplar", True, True),
-        )
-    }
-    seen.clear()
     ns["freeze_path"] = Path("outputs") / "frozen" / "frozen_experiment.json"
     ns["freeze_path"].write_text("{}", encoding="utf-8")
     run(ns, "cnt-activity")
-    validation_ids = {r["id"] for r in ns["validation_records"]}
-    assert seen and all(ids == validation_ids for ids in seen)
+    assert (
+        model.forwards == forwards
+    )  # the activity reads section 12's validation sweep, no new model run
     assert {row["threshold"] for row in ns["activity_result"]["rows"]} == {0.23, 0.30}
+    assert ns["activity_result"]["split"] == "validation"
     assert sorted(p.name for p in (Path("outputs") / "activity").iterdir()) == [
         "countgd_threshold_activity.csv",
         "countgd_threshold_activity.json",
