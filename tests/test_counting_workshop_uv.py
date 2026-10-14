@@ -191,9 +191,13 @@ def test_kernel_cells_import_only_the_standard_library_and_ipython():
 
 
 def test_revision_recorded():
-    assert NB["metadata"]["workshop_revision"] == "0.3.0-candidate"
-    entry = NB["metadata"]["dimer"]["review_revisions"][-1]
-    assert entry["change"] == "uv isolated environment" and entry["date"] == "2026-10-03"
+    assert NB["metadata"]["workshop_revision"] == "0.4.0-candidate"
+    entry = next(
+        r
+        for r in NB["metadata"]["dimer"]["review_revisions"]
+        if r.get("change") == "uv isolated environment"
+    )
+    assert entry["date"] == "2026-10-03"
 
 
 # -------------------- the carried cell runner, driven with this interpreter as a stand-in
