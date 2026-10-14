@@ -216,7 +216,7 @@ Executed notebook: [`execution-evidence/2026-10-04/DIMER_Open_Vocabulary_Detecti
 
 Status stays **Candidate**; `metadata.dimer.clean_runtime_evidence` stays `pending` as authored.
 
-### Owner decisions on PR #8 (revision 0.4.0-candidate) — not yet executed on a hosted runtime
+### Owner decisions on PR #8 (revision 0.4.0-candidate)
 
 Notebook blob `e0f3e2e4` → `c58c9215` (workshop revision 0.3.0-candidate → 0.4.0-candidate). The maintainer
 decided the three open owner decisions of the 2026-10-12 review round (PR #8):
@@ -244,4 +244,32 @@ the fixed-threshold CountGD comparison; none of them is evidence for this revisi
 required. The expected change in wall time is small (estimated, not measured): about 40 extra detector forward passes
 for the target-only rows, and no extra CountGD forward passes.
 
+The CNT2-m4 point figure (commit `080437a`) then changed the blob `c58c9215` → `dcbaea2f`. That blob passed a
+Colab CLI run on a fresh T4 on 2026-10-14 (record below).
+
 Status stays **Candidate**; `metadata.dimer.clean_runtime_evidence` stays `pending`.
+
+### Colab CLI execution of revision 0.4.0-candidate (`080437a`, blob `dcbaea2f`) — 2026-10-14
+
+Executed notebook: [`execution-evidence/2026-10-14/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop_080437a_colab-cli-t4.ipynb`](execution-evidence/2026-10-14/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop_080437a_colab-cli-t4.ipynb), archived byte-for-byte, SHA-256 `8a7c25c0d9f55656f9008c3d609fcca89a5ed4b505947dbeeb3ba3c6ad317fa6`; beside it `…_run_summary.json` (`24a079048c6f67b91cc5dce097a4500b291e6e36f35f0703dab2b4a3cf7a2ce0`) and `…_exec.log` (`be9db7aa6ca0e6904f4579b1f2fc8145debae87dd350e5117cd620573e5a3edd`).
+
+- **Subject:** `tutorials/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb` at PR #8 head `080437a07db67a318281742e5dba5fdb26b9d812`, blob `dcbaea2f28b84bba163217efd29fd2618906127a` (workshop revision 0.4.0-candidate with the CNT2-m4 point figure). The notebook was downloaded from GitHub at the commit and its blob verified before the session. The input file was unchanged after the run.
+- **Executor:** Colab CLI 0.7.4 sequential execution on a fresh Colab Tesla T4 session (`colab-cli-serial-test-suite`, session stopped afterwards). This is not a browser Run all. The CLI records no execution counts, so cell order comes from `exec.log` (cells 1–50 of 50, sequential and complete).
+- **Path exercised:** default `STANDARD` with every control at its default. `FULL`, the activity, BYOD and the FSC-147 check were not run, and their cells printed their skip messages. The BYOD validator's built-in refusal example ran and refused its demo archive. Forms and uploads were not exercised.
+- **Outcome:** **one pass, no restart, 0 errors**, 50/50 code cells, 327.6 s session wall time. 33 code cells saved output (59 outputs, 5 figures). The 17 cells without output define functions or carried modules. Every model ran on `cuda:0` and printed metrics; none was skipped or read from a cache of results. Grounding DINO and OWLv2 printed validation and test detection tables. CountGD printed the validation sweep (3 modes × 5 thresholds) and 6 test rows. Six detector-as-counter rows (two-phrase and target-only) and both baselines were printed. The new CountGD point figure (section 18) rendered.
+- **Results:** isolated environment Python 3.12.12, torch 2.14.0+cu130, transformers 4.57.6, numpy 2.5.3, Tesla T4, `lock_sha256` `045ccc32...`; carrier commit `bd38240a`, 9 files verified; `dataset_sha256` `2eae4c91...`; CountGD weight SHA-256 `8e44867b...`.
+  - CountGD thresholds were selected on validation: 0.40 for text, exemplar and text+exemplar, with validation MAE 1.125, 13.375 and 9.125, the lowest in each mode's sweep. 0.40 is the top of `COUNTGD_THRESHOLD_GRID`. The selection reads only the validation sweep (section 12) and is frozen in section 16, before the test sweep in section 18.
+  - Test MAE for the primary CountGD rows at 0.40: text 2.833, exemplar 10.583, text+exemplar 6.833 (point F1 0.942, 0.814, 0.871; box F1 0.519, 0.498, 0.458). The upstream-default 0.23 rows: 4.667, 11.667, 7.417.
+  - Detector count thresholds: two-phrase Grounding DINO 0.1 and OWLv2 0.3; target-only 0.3 and 0.3. Test MAE: Grounding DINO 1.250 and OWLv2 1.500 (two-phrase), 2.167 and 1.500 (target-only diagnostic). Baselines: mean count 10.000, template matcher 14.500 (point F1 0.704).
+  - CountGD text+exemplar on the three new scenes at 0.40: MAE 5.000 (gold 39 / 13 / 34, predicted 48 / 19 / 34).
+  - Report bundle: 20 files, SHA-256 `d32e0ad4...`.
+- **Comparison with the 2026-10-04 Colab CLI run (blob `4c86f59d`):** each printed value that appears in both runs is identical, with the exceptions below. All of them come from the PR #8 changes:
+  - The primary CountGD rows moved from 0.23 to the validation-selected 0.40 (CNT2-M2 = C). The 0.23 rows are now labelled upstream default, and they equal the earlier rows exactly (MAE, RMSE, point F1, box F1).
+  - The target-only detector rows and columns, the threshold-sweep columns and the completion-summary rows are new (CNT2-M1 = C).
+  - The single evaluator (CNT2-CX1 = A) changed one value that both runs print: validation text+exemplar point F1 at 0.23 went from 0.852336 to 0.856075, because the max-cardinality matcher keeps an eligible pair that the earlier minimum-cost assignment gave up. It also adds the template matcher's point F1 (0.704; it printed NaN before). Every other point F1 and box F1 is unchanged to the printed precision, including both detector counters.
+  - The new-scene MAE went from 6.667 to 5.000 because those scenes are now read at the selected 0.40.
+  - The report bundle went from 17 to 20 files, so its digest changed.
+  - Detection AP tables, prompt sensitivity, baselines and two-phrase detector counts are unchanged.
+- **Boundary:** saved outputs inspected; the exported bundle was not downloaded. Activity, BYOD with valid and rejected archives (REL12) and `FULL` with both reload parities remain open.
+
+Status stays **Candidate**; `metadata.dimer.clean_runtime_evidence` stays `pending` as authored.
