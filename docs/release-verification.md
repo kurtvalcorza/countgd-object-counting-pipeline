@@ -159,6 +159,8 @@ runtime on 2026-09-24 only after a manual restart following the in-kernel instal
 `Run all`. Promotion still needs the Section 10 activity and BYOD with one valid and one refused zip run on the current blob
 in a clean runtime.
 
+The current blob `73a3807e` (code commit `d60f374`) shows a refused BYOD input as one `Refused: <file>: <reason>` line with no traceback, removes the earlier run's results and `outputs/` files and stops Run all at that cell, while genuine failures keep their traceback (NOTEBOOK_SPEC DAT19/DAT20); its hosted Colab T4 runs (the default path and a scripted refusal, `USE_BYOD=True;BYOD_ZIP_PATH='/etc/hostname'`) are pending, and the hosted runs of earlier blobs, including `a33fb95a3177`, are history for it (REL14).
+
 ## Supplemental open-vocabulary detection and counting workshop — `tutorials/DIMER_Open_Vocabulary_Detection_and_Counting_Workshop.ipynb`
 
 This entry applies only to the supplemental workshop notebook, not the primary tutorial executions above.
