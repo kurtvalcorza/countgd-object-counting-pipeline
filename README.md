@@ -30,7 +30,7 @@ regenerated on 2026-10-04 for its review (uv isolated environment, no restart); 
 a fresh Colab T4 on 2026-10-04, and it returns to Release-grade only after the activity and BYOD runs are recorded. Production HTTP serving and DIMER worker packaging remain a separate
 serving-readiness milestone.
 
-The current blob `73a3807e` (code commit `d60f374`) shows a refused BYOD input as one `Refused: <file>: <reason>` line with no traceback, removes the earlier run's results and `outputs/` files and stops Run all at that cell, while genuine failures keep their traceback (NOTEBOOK_SPEC DAT19/DAT20); its hosted Colab T4 runs (the default path and a scripted refusal, `USE_BYOD=True;BYOD_ZIP_PATH='/etc/hostname'`) are pending, and the hosted runs of earlier blobs, including `a33fb95a3177`, are history for it (REL14).
+The current blob `73a3807e` (code commit `d60f374`) shows a refused BYOD input as one `Refused: <file>: <reason>` line with no traceback, removes the earlier run's results and `outputs/` files and stops Run all at that cell, while genuine failures keep their traceback (NOTEBOOK_SPEC DAT19/DAT20); on 2026-10-29 its default path (18/18 code cells, one pass, no restart, 0 errors) and its scripted DAT20 refusal (`USE_BYOD=True;BYOD_ZIP_PATH='/etc/hostname'`: exactly one `Refused:` line at cell `countgd_object_counting-28`, no traceback, earlier cells clean, VM released) both passed on a hosted Colab Tesla T4 (Colab CLI sequential execution, not a browser `Run all`; see "Recorded executions" in `docs/release-verification.md`), and the hosted runs of earlier blobs, including `a33fb95a3177`, are history for it (REL14).
 
 ## Capabilities
 
