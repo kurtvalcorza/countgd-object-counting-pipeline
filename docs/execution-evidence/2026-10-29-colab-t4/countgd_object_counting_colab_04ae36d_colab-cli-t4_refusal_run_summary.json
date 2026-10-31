@@ -1,0 +1,77 @@
+{
+  "repo": "countgd-object-counting-pipeline",
+  "sha": "04ae36de24447938849a1f2fd8a3c8d5f36e7f04",
+  "notebook": "tutorials/countgd_object_counting_colab.ipynb",
+  "blob": "73a3807ead0df49d98847c3b8d3a3e756aa7409a",
+  "gpu": "T4",
+  "session": "suite-countgd-04ae36d-3e93",
+  "started_utc": "2026-10-29T01:53:25+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "USE_BYOD",
+      "from": "False",
+      "to": "True"
+    },
+    {
+      "name": "BYOD_ZIP_PATH",
+      "from": "''",
+      "to": "'/etc/hostname'"
+    }
+  ],
+  "run_copy_blob": "6d03a9d2bb93ccf9cf1468a9fbc2dd662ccd8a9c",
+  "run_copy_sha256": "d79fc909d777782c722b9f8d93a1c6f4c49aa2e3c05c86d0dae1148c615dbef5",
+  "run_copy_note": "refusal run: the run copy is the committed notebook with the listed assignment overrides, cut immediately after the refusal cell and re-serialised (nbformat layout); input_unchanged compares against that copy",
+  "truncated_after_cell": "countgd_object_counting-28",
+  "refusal_cell_ref": "countgd_object_counting-28",
+  "refusal_cell_index": 13,
+  "cells_dropped": 16,
+  "code_cells_dropped": 5,
+  "original_sha256": "29653884a122e18d430d352640b5f200a78087d7f659b6ce759bfb1586f6fa3c",
+  "status": "[suite-countgd-04ae36d-3e93] gpu-t4-s-usw1b1-1md378gg0w1sq | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 128.3,
+  "input_unchanged": true,
+  "executed_file": "countgd_object_counting_colab_04ae36d_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+  ],
+  "log_total": 13,
+  "code_cells": 13,
+  "executed_cells": 5,
+  "errors": [
+    {
+      "cell": "countgd_object_counting-28",
+      "ename": "IsolatedCellRefusal",
+      "evalue": "hostname: BYOD needs a .zip file; its contents are not a zip archive. Zip labels.csv and the images, then set BYOD_ZIP_PATH (or upload) and run Section 4 again (the earlier results of this session and their outputs/ files were removed)."
+    }
+  ],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "cd7aaf8eaa62d03c06fea85c0d60aa25aea47388c537b964659ef0f733496d28",
+  "log_sequential_complete": true,
+  "mode": "expect_refusal",
+  "refusal_line": "Refused: hostname: BYOD needs a .zip file; its contents are not a zip archive. Zip labels.csv and the images, then set BYOD_ZIP_PATH (or upload) and run Section 4 again (the earlier results of this session and their outputs/ files were removed).",
+  "halting_cell_index": 13,
+  "halting_cell_id": "countgd_object_counting-28",
+  "error_cells": [
+    13
+  ],
+  "refusal_fail_reasons": [],
+  "refusal_ok": true,
+  "verdict": "PASS"
+}
